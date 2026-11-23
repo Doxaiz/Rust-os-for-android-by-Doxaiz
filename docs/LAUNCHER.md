@@ -20,7 +20,7 @@ adb shell cmd package set-home-activity com.doxaiz.launcher/.MainActivity
 
 ## 2. Как приложение попадает в образ
 
-1. `scripts/fetch-launcher-apk.sh` скачивает последний релизный APK из [Doxaiz-android-launcher-/releases](https://github.com/Doxaiz/Doxaiz-android-launcher-/releases) в `overlay/vendor/doxaiz/apps/DoxaizLauncher/DoxaizLauncher.apk` (или прямо в дерево AOSP, если передать путь).
+1. `scripts/fetch-launcher-apk.sh` скачивает последний релизный APK (и проверяет его sha256 по `apk-sha256.txt` из того же релиза; несовпадение = hard fail) из [Doxaiz-android-launcher-/releases](https://github.com/Doxaiz/Doxaiz-android-launcher-/releases) в `overlay/vendor/doxaiz/apps/DoxaizLauncher/DoxaizLauncher.apk` (или прямо в дерево AOSP, если передать путь).
 2. `scripts/apply-overlay.sh` копирует overlay в дерево как `vendor/doxaiz`.
 3. `vendor/doxaiz/products/doxaiz_base.mk` добавляет `DoxaizLauncher` в `PRODUCT_PACKAGES`.
 4. `vendor/doxaiz/apps/DoxaizLauncher/Android.mk` — модуль `prebuilt_app` (`BUILD_PREBUILT`), по умолчанию в режиме `PRESIGNED`.

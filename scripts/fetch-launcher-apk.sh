@@ -23,6 +23,14 @@ DEST_APK="${DEST_DIR}/DoxaizLauncher.apk"
 echo "Источник : github.com/${REPO} (latest release)"
 echo "Назначение: ${DEST_APK}"
 
+# Имя последнего тега — нужно для проверки apk-sha256.txt. Узнаём один раз.
+TAG_NAME="$(curl -fsSL --max-time 30 "https://api.github.com/repos/${REPO}/releases/latest" | python3 -c 'import json,sys
+try:
+    print(json.load(sys.stdin).get("tag_name",""))
+except Exception:
+    print("")' || true)"
+echo "Последний релиз: ${TAG_NAME:-неизвестен (нет сети / лимит API)}"
+
 if command -v gh >/dev/null 2>&1; then
     echo "Скачиваю через gh release download…"
     tmpdir="$(mktemp -d)"
@@ -51,8 +59,37 @@ for a in d.get("assets", []):
     curl -fsSL -o "${DEST_APK}" "${assets_url}"
 fi
 
-echo "Скачано: $(du -h "${DEST_APK}" | cut -f1)"
-if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum "${DEST_APK}"
+# --- Проверка целостности (sha256) -------------------------------------------
+# Релизы лаунчера публикуют apk-sha256.txt рядом с APK. Если его удалось
+# скачать и разобрать — проверяем обязательно: несовпадение = hard fail
+# (битый/подменённый APK). Если скачать не удалось (офлайн-зеркало, нет сети,
+# файл отсутствует) — только предупреждение: на релизных сборках проверьте
+# вручную https://github.com/<repo>/releases/latest
+if [ -z "${TAG_NAME}" ]; then
+    echo "ПРЕДУПРЕЖДЕНИЕ: тег последнего релиза неизвестен — проверка sha256 пропущена." >&2
+else
+    SHA_URL="https://github.com/${REPO}/releases/download/${TAG_NAME}/apk-sha256.txt"
+    echo "Проверяю sha256 (${SHA_URL})…"
+    actual="$(sha256sum "${DEST_APK}" | awk '{print $1}')"
+    echo "Фактический sha256: ${actual}"
+    if curl -fsSL --max-time 30 -o "${TMPDIR:-/tmp}/doxaiz-apk-sha256.txt" "${SHA_URL}" 2>/dev/null; then
+        expected="$(grep -oE '[0-9a-fA-F]{64}' "${TMPDIR:-/tmp}/doxaiz-apk-sha256.txt" | head -n 1 | tr 'A-F' 'a-f')"
+        rm -f "${TMPDIR:-/tmp}/doxaiz-apk-sha256.txt"
+        if [ -z "${expected}" ]; then
+            echo "ПРЕДУПРЕЖДЕНИЕ: apk-sha256.txt скачан, но sha256 в нём не распознан — проверка пропущена." >&2
+        elif [ "${expected}" != "${actual}" ]; then
+            echo "ОШИБКА: sha256 APK НЕ совпал с apk-sha256.txt из релиза!" >&2
+            echo "  ожидалось: ${expected}" >&2
+            echo "  получено : ${actual}" >&2
+            echo "APK мог быть повреждён при скачивании или подменён. Не используйте." >&2
+            exit 1
+        else
+            echo "sha256 OK — APK совпадает с релизным apk-sha256.txt"
+        fi
+    else
+        echo "ПРЕДУПРЕЖДЕНИЕ: apk-sha256.txt недоступен — целостность НЕ проверена" >&2
+        echo "  (APK скачан с того же release; но на релизных сборках сверьте хеш вручную)" >&2
+    fi
 fi
+
 echo "Готово. APK не коммитьте (он в .gitignore) — он только для сборки образа."
