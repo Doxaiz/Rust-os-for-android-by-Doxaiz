@@ -14,11 +14,20 @@ REPO="Doxaiz/Doxaiz-android-launcher-"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEST_DIR_REL="overlay/vendor/doxaiz/apps/DoxaizLauncher"
 DEST_DIR="${REPO_ROOT}/${DEST_DIR_REL}"
+if [ $# -gt 1 ]; then
+    echo "Использование: $0 [путь/AOSP]" >&2
+    exit 2
+fi
 if [ $# -eq 1 ]; then
     DEST_DIR="$1/vendor/doxaiz/apps/DoxaizLauncher"
     mkdir -p "$DEST_DIR"
 fi
+mkdir -p "$DEST_DIR"
 DEST_APK="${DEST_DIR}/DoxaizLauncher.apk"
+# Временный каталог на той же ФС: проверенный APK публикуется атомарным mv.
+tmpdir="$(mktemp -d "${DEST_DIR}/.launcher-download.XXXXXX")"
+trap 'rm -rf "$tmpdir"' EXIT
+STAGED_APK="${tmpdir}/DoxaizLauncher.apk"
 
 echo "Источник : github.com/${REPO} (latest release)"
 echo "Назначение: ${DEST_APK}"
@@ -29,22 +38,24 @@ try:
     print(json.load(sys.stdin).get("tag_name",""))
 except Exception:
     print("")' || true)"
-echo "Последний релиз: ${TAG_NAME:-неизвестен (нет сети / лимит API)}"
+if [ -z "$TAG_NAME" ]; then
+    echo "Ошибка: не удалось определить тег релиза; существующий APK не изменён." >&2
+    exit 1
+fi
+echo "Последний релиз: ${TAG_NAME}"
 
 if command -v gh >/dev/null 2>&1; then
     echo "Скачиваю через gh release download…"
-    tmpdir="$(mktemp -d)"
-    gh release download --repo "${REPO}" --pattern '*.apk' --dir "${tmpdir}"
+    gh release download "$TAG_NAME" --repo "${REPO}" --pattern '*.apk' --dir "${tmpdir}"
     apk="$(find "${tmpdir}" -name '*.apk' | sort | head -n 1)"
     if [ -z "${apk}" ]; then
         echo "Ошибка: в последнем релизе ${REPO} нет *.apk" >&2
         exit 1
     fi
-    cp "${apk}" "${DEST_APK}"
-    rm -rf "${tmpdir}"
+    mv "${apk}" "${STAGED_APK}"
 else
     echo "gh не найден, скачиваю через api.github.com…"
-    assets_url="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
+    assets_url="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/tags/${TAG_NAME}" \
         | python3 -c 'import json,sys
 d = json.load(sys.stdin)
 for a in d.get("assets", []):
@@ -56,7 +67,7 @@ for a in d.get("assets", []):
         exit 1
     fi
     echo "APK: ${assets_url}"
-    curl -fsSL -o "${DEST_APK}" "${assets_url}"
+    curl -fsSL --max-time 120 -o "${STAGED_APK}" "${assets_url}"
 fi
 
 # --- Проверка целостности (sha256) -------------------------------------------
@@ -70,11 +81,11 @@ if [ -z "${TAG_NAME}" ]; then
 else
     SHA_URL="https://github.com/${REPO}/releases/download/${TAG_NAME}/apk-sha256.txt"
     echo "Проверяю sha256 (${SHA_URL})…"
-    actual="$(sha256sum "${DEST_APK}" | awk '{print $1}')"
+    actual="$(sha256sum "${STAGED_APK}" | awk '{print $1}')"
     echo "Фактический sha256: ${actual}"
-    if curl -fsSL --max-time 30 -o "${TMPDIR:-/tmp}/doxaiz-apk-sha256.txt" "${SHA_URL}" 2>/dev/null; then
-        expected="$(grep -oE '[0-9a-fA-F]{64}' "${TMPDIR:-/tmp}/doxaiz-apk-sha256.txt" | head -n 1 | tr 'A-F' 'a-f')"
-        rm -f "${TMPDIR:-/tmp}/doxaiz-apk-sha256.txt"
+    if curl -fsSL --max-time 30 -o "${tmpdir}/apk-sha256.txt" "${SHA_URL}" 2>/dev/null; then
+        expected="$(grep -oE '[0-9a-fA-F]{64}' "${tmpdir}/apk-sha256.txt" | head -n 1 | tr 'A-F' 'a-f' || true)"
+        rm -f "${tmpdir}/apk-sha256.txt"
         if [ -z "${expected}" ]; then
             echo "ПРЕДУПРЕЖДЕНИЕ: apk-sha256.txt скачан, но sha256 в нём не распознан — проверка пропущена." >&2
         elif [ "${expected}" != "${actual}" ]; then
@@ -92,4 +103,15 @@ else
     fi
 fi
 
+# Минимальная проверка контейнера; это не проверка подписи/идентичности пакета.
+python3 - "$STAGED_APK" <<'PYAPK'
+import sys, zipfile
+with zipfile.ZipFile(sys.argv[1]) as apk:
+    names = apk.namelist()
+    if 'AndroidManifest.xml' not in names or 'classes.dex' not in names:
+        raise SystemExit('Ошибка: файл не является ожидаемым APK')
+    if apk.testzip() is not None:
+        raise SystemExit('Ошибка: повреждённый ZIP/APK')
+PYAPK
+mv -f "$STAGED_APK" "$DEST_APK"
 echo "Готово. APK не коммитьте (он в .gitignore) — он только для сборки образа."
