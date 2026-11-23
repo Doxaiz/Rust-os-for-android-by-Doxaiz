@@ -8,6 +8,7 @@
 # Примеры:
 #   scripts/build.sh ~/android/doxaiz aosp_cf_x86_64_phone-trunk_staging-userdebug   # Cuttlefish
 #   scripts/build.sh ~/android/doxaiz lineage_<device>-userdebug                   # реальное устройство
+#   scripts/build.sh ~/android/doxaiz doxaiz_arm64-userdebug                       # GSI (любой Treble-телефон; docs/GSI.md)
 set -euo pipefail
 
 if [ $# -ne 2 ]; then

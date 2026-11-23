@@ -8,7 +8,7 @@
 |---|---|---|
 | SELinux **enforcing** | Изоляция процессов, граница между приложениями | Никогда не переводить в permissive в релизе; permissive допустим только для локальной отладки с `setenforce 0` на userdebug |
 | Verified Boot (AVB 2.0) | Образ не подменён | Подпись boot/system/vendor; на релизных устройствах bootloader блокируется после прошивки |
-| Verity (dm-verity) | Read-only разделы защищают себя сами | Не отключать |
+| Verity (dm-verity) | Read-only разделы защищают себя сами | Не отключать в per-device релизе; исключение: прошивка НЕподписанного GSI требует vbmeta с `--disable-verity --disable-verification` — осознанное отклонение, см. [GSI.md](GSI.md) §4 и §6 |
 | Подписи приложений | Play Integrity, обновления | Все APK (и наш prebuilt) подписаны; подмена невозможна |
 | Sandboxed app framework | UID, изоляция данных | Не отключать multiuser/isolate |
 
@@ -40,8 +40,9 @@
 
 ## 6. Обновления
 
-* База (AOSP/LineageOS) обновляется **еженедельно** апстримом LineageOS; наша задача — регулярно rebase overlay и relеase подписанные OTA.
+* База (AOSP/LineageOS) обновляется **еженедельно** апстримом LineageOS; наша задача — регулярно rebase overlay и release подписанные OTA.
 * Подпись OTA обязательна; механизм A/B (seamless updates) — если SoC/устройство его поддерживает, иначе recovery-заливка.
+* **GSI-поставки**: OTA стандартным механизмом recovery недоступна (нет update_engine-политики на «чужом» vbmeta) — обновление GSI = повторная прошивка новой сборки `system.img` (factory reset не требуется, если разметка не менялась; всё равно рекомендуется `fastboot -w` для обновления major-версий). Подробно: [GSI.md](GSI.md) §4 и [OTA.md](OTA.md).
 * План: этап 7 в [ROADMAP.md](ROADMAP.md).
 
 ## 7. Проверки безопасности в CI

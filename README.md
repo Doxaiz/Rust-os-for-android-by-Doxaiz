@@ -5,7 +5,7 @@
 # DoxaizOS
 
 **Самая лёгкая мобильная ОС для Android-телефонов: минимум ос, максимум свободной памяти.**
-Android-база (LineageOS/AOSP slim) · low-RAM профиль в духе Android Go · рабочий стол — [Doxaiz Launcher](https://github.com/Doxaiz/Doxaiz-android-launcher-) · весь новый системный код — на Rust.
+Android-база (LineageOS/AOSP slim) · low-RAM профиль в духе Android Go · рабочий стол — [Doxaiz Launcher](https://github.com/Doxaiz/Doxaiz-android-launcher-) · весь новый системный код — на Rust · **поставляется как GSI: ставится на любой телефон с Project Treble (Android 8+)**.
 
 [![CI](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/workflows/ci.yml/badge.svg)](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/workflows/ci.yml)
 [![Лицензия](https://img.shields.io/badge/лицензия-MIT-blue)](LICENSE)
@@ -32,9 +32,10 @@ Android-база (LineageOS/AOSP slim) · low-RAM профиль в духе And
 
 1. **Сборка образа** (нужен ПК, ≥ 250 ГБ SSD, Linux x86_64):
    [docs/BUILD.md](docs/BUILD.md) — от `repo init` до `launch_cvd` и `adb install`.
-2. **Что внутри и почему так**: [docs/RESEARCH.md](docs/RESEARCH.md) (исследование, источники) и [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
-3. **Лаунчер как HOME**: [docs/LAUNCHER.md](docs/LAUNCHER.md).
-4. **Список этапов работ**: [docs/ROADMAP.md](docs/ROADMAP.md).
+2. **Поставить на ЛЮБОЙ телефон** (Project Treble, Android 8+): [docs/GSI.md](docs/GSI.md) — GSI-сборка `lunch doxaiz_arm64-userdebug`, прошивка через fastboot, безопасный тест через DSU.
+3. **Что внутри и почему так**: [docs/RESEARCH.md](docs/RESEARCH.md) (исследование, источники) и [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+4. **Лаунчер как HOME**: [docs/LAUNCHER.md](docs/LAUNCHER.md).
+5. **Список этапов работ**: [docs/ROADMAP.md](docs/ROADMAP.md).
 
 Одной командой инструментарий сборки (проверки репозитория):
 
@@ -60,9 +61,9 @@ cargo run -p doxaiz-metrics -- pss pss.txt              # PSS лаунчера �
 ## Состав репозитория
 
 ```
-docs/          документация: RESEARCH, ARCHITECTURE, BUILD, PERFORMANCE, SECURITY, LAUNCHER, ROADMAP, DEVICES, OTA
+docs/          документация: RESEARCH, ARCHITECTURE, BUILD, PERFORMANCE, SECURITY, LAUNCHER, ROADMAP, DEVICES, OTA, GSI
 manifest/      локальный манифест для дерева AOSP/LineageOS (исключения automotive/TV)
-overlay/       вендорский overlay vendor/doxaiz: low-RAM свойства, prebuilt лаунчера, подпись
+overlay/       вендорский overlay vendor/doxaiz: low-RAM свойства, prebuilt лаунчера, подпись, продукт doxaiz_gsi (GSI)
 core/          Rust workspace: doxaiz-perf (low-RAM профиль), doxaiz-xtask (проверки),
                doxaiz-metrics (бюджет памяти: парсер meminfo + doxaiz-check)
 scripts/       apply-overlay.sh, fetch-launcher-apk.sh, build.sh, preflight.sh, ota.sh, cuttlefish-run.sh, check-docs-links.py
@@ -79,14 +80,15 @@ assets/        логотип
 | Rust-инструментарий с тестами и CI | ✅ готово |
 | Автопроверка бюджета памяти (`doxaiz-check`) | ✅ готово |
 | Первый образ Cuttlefish с DoxaizOS | ⏳ не собран (нужен ПК; смотрите BUILD.md) |
-| Сборка для реального устройства с 2 ГБ | ⏳ нет (нужен официальный порт LineageOS; см. ROADMAP этап 5) |
+| GSI-сборка для любого Treble-телефона | ⏳ не собран (нужен ПК; [docs/GSI.md](docs/GSI.md)); DSU-тест до прошивки обязателен |
+| Сборка для реального устройства с 2 ГБ | ⏳ нет (официальный порт LineageOS; см. ROADMAP этап 5) |
 | Чистая Rust-ОС с нуля (Afflictio/moss) | 🔭 исследовательский трек, не блокирует основную линию |
 
 ## FAQ
 
 **Это «своё ядро с нуля»?** Нет. Для телефона с живыми драйверами и вашим лаунчером ядро с нуля на Rust сегодня проигрывает Linux+AOSP. Подробные аргументы: [docs/RESEARCH.md](docs/RESEARCH.md), §3.1.
 
-**Куда ставить?** На Cuttlefish (разработка) и на телефон с официальным портом LineageOS (2 ГБ ОЗУ и живой порт — проверяйте [lineageos.org/devices](https://lineageos.org/devices/)).
+**Куда ставить?** Три пути: (1) **GSI на любой Treble-телефон** — [docs/GSI.md](docs/GSI.md); (2) телефон с официальным портом LineageOS (2 ГБ — проверяйте [lineageos.org/devices](https://lineageos.org/devices/)); (3) Cuttlefish (разработка).
 
 **Будет ли Google Play?** Нет, GMS в образе нет. Приложения — APK/F-Droid. Это осознанный выбор ([docs/SECURITY.md](docs/SECURITY.md)).
 

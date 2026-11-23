@@ -12,10 +12,11 @@
 | 4 | **Лёгкость берём по модели Android Go:** `ro.config.low_ram`, маленькие лимиты кучи Dalvik, ZRAM 50 %, lmkd (с официальными low-RAM дефолтами), отказ от Google-служб, удаление automotive/TV-пакетов. | Android Go — официальная «облегчённая» Android-модель ровно под класс устройств ≤ 2 ГБ / 16 ГБ; на практике ~вдвое компактнее полного Android. Дефолты lmkd для low-RAM задокументированы AOSP. [13][14][15][24][25] |
 | 5 | **ОС с нуля на чистом Rust (как Afflictio/moss) — отслеживаем, но не выбираем для 2 ГБ-телефона сегодня.** | Такие проекты уже грузятся в QEMU и пишутся на Rust, но до реальных драйверов и пригодности для 2 ГБ-железа — долгая дистанция; сам проект Afflictio честно маркирует себя «загружаемым скелетом». [1][2][3] |
 | 6 | **Проверка — Cuttlefish (виртуальный телефон AOSP) + CI.** Реальный билд — на ПК сборщика, не в песочнице. | Cuttlefish — официальный способ AOSP прогнать образ в VM и через adb; KVM есть на GitHub Actions/обычном ПК. [17][18] |
+| 7 | **«Поставить на любой телефон» = GSI-сборка (Project Treble, Android 8+).** Per-device порт — второй контур для лучшего поведения. | GSI (Generic System Image) — официальный формат Google «один system.img на тысячи моделей»; DSU позволяет протестировать GSI без прошивки (Android 10+, динамические разделы). Подробно: [GSI.md](GSI.md), §2.4. [34][39][43] |
 
 Отвечая на главный вопрос «какая архитектура даст максимум производительности и позволит ставить даже на 2 ГБ ОЗУ с большим запасом свободной памяти»:
 
-**Lean AOSP/LineageOS (без GMS, low-RAM-профиль, ядро Common Kernel + ZRAM) + Doxaiz Launcher как HOME + весь новый код на Rust.** Точные целевые бюджеты — в [ARCHITECTURE.md](ARCHITECTURE.md), методика замеров — в [PERFORMANCE.md](PERFORMANCE.md).
+**Lean AOSP/LineageOS (без GMS, low-RAM-профиль, ядро Common Kernel + ZRAM) + Doxaiz Launcher как HOME + весь новый код на Rust — поставляемый как GSI для всех Treble-устройств (плюс per-device порты).** Точные целевые бюджеты — в [ARCHITECTURE.md](ARCHITECTURE.md), методика замеров — в [PERFORMANCE.md](PERFORMANCE.md).
 
 ---
 
@@ -62,12 +63,24 @@
 | Sailfish / Tizen / HarmonyOS | 2–4 ГБ | частично/✅ | ❌ закрытые экосистемы |
 
 Источники по лёгким сборкам и Android Go: [12][13][14][15][16][19][20]
+Источники по GSI/DSU («прошивка на любой телефон»): [34][35][36][37][38][39][40][41][42][43][44]
 
 **Android Go — ключевое доказательство**, что 2 ГБ достаточно, если убрать всё лишнее: требования Android 13 Go — 2 ГБ ОЗУ и 16 ГБ хранилища; Android 11 требовал 1 ГБ; Android 8.1 — 512 МБ. Оптимизации: `ro.config.low_ram`, лимиты Dalvik, hibernate неиспользуемых приложений, Lite-приложения. [13][14][15]
 
 **LineageOS** выбран как база: открытый исходный код (зеркало AOSP + LineageOS на GitHub — можно собирать с `github.com/LineageOS/android`), официальные недельные сборки, регулярные патчи безопасности, поддержка 200+ устройств, минимум предустановок, легко «отрезается» лишнее. [19][20]
 
 Проверено по официальному манифесту: ветка `lineage-24.0` фиксирует AOSP на `refs/tags/android-17.0.0_r1` (Android 17); `device/google/cuttlefish` входит в манифест — можно собирать виртуальный телефон и гонять adb в VM (KVM). [19] Официальная wiki сборки: для ветки ≥ lineage-21 рекомендуется 64 ГБ ОЗУ и 400 ГБ диска (lineage-21+ / Android 14+); для повторных сборок — `ccache` на 25–50 ГБ. [29] Исключения из синхронизации оформляются локальным манифестом тегом `<remove-project name="…"/>` — см. [manifest/doxaiz.xml](../manifest/doxaiz.xml). [32]
+
+### 2.4. GSI — как одна прошивка ставится на любой телефон
+
+* **Project Treble (Android 8+, обязателен для новых устройств)** — разделил платформу и вендорские драйверы через VNDK и стабильные HAL. Поэтому Google публикует **GSI (Generic System Image)** — «голый» `/system` без привязки к железу: ядро и vendor остаются от самого телефона, образ один на тысячи моделей. [34][43]
+* В `lineage-24.0` готовый GSI-набор лежит в проекте `device/generic/common` (`LineageOS/android_device_generic_common`, ветка lineage-24.0): `gsi_arm64.mk` (CTS-grade GSI, `PRODUCT_DEVICE=generic_arm64` → BoardConfig из AOSP-проекта `device/generic/arm64/BoardConfig.mk`), `mgsi_*`/`csi_*` (минимальная GSI, `PRODUCT_DEVICE=dummy_arm64` → `device/generic/common/dummy_arm64/BoardConfig.mk`), x86/x86_64-варианты; паттерн поиска — `find -L device -maxdepth 4 -path '*/$(TARGET_DEVICE)/BoardConfig.mk'` (проверено по `build/make/core/board_config.mk` AOSP). Официальная инструкция AOSP: `lunch gsi_arm64-userdebug` → `out/target/product/generic_arm64/system.img`. [43]
+* **DSU (Dynamic System Updates)** — запуск GSI без прошивки: Android 10+, динамические разделы, ≥ 40 % свободного места; образ `/data/gsi`, sandbox, stock-система не трогается; GSI должна быть не ниже stock по security patch level. [39][40]
+* **Сообщество** (TrebleDroid/phhusson-патчи, сборки AndyYan `*-gsi_arm64_*` на Android 17) — рабочие GSI для LOS-подобных систем; чистые Google GSI = инструмент совместимости, не полноценные прошивки; для Android Go без VNDK-библиотек — `vndklite`-варианты. [41][42][44]
+* **verity**: все Android 10+ из коробки с dm-verity → перед прошивкой своего GSI обязательно `fastboot --disable-verity --disable-verification flash vbmeta vbmeta.img` (см. [GSI.md](GSI.md) §4).
+* **Ограничения**: телефоны без Treble — только per-device порт; банковские приложения / Widevine L1 / camera-HAL на «капризных» моделях — типичные проблемы GSI; 16K-страницы на Android 15+ требуют соответствующей сборки. DoxaizOS-GSI покрывает «любой Treble-телефон», а per-device LOS-порты дают лучшее поведение на конкретной модели — обе дорожки в репозитории. Полностью: [GSI.md](GSI.md).
+
+**Урок:** GSI — единственный в индустрии механизм «одна прошивка на любой телефон»; мы строим DoxaizOS-GSI (`overlay/vendor/doxaiz/products/doxaiz_gsi.mk`, lunch `doxaiz_arm64-userdebug`) поверх LOS-GSI и DSU-тест перед прошивкой. Это и есть ответ на «поставить на любой телефон».
 
 ---
 
@@ -113,7 +126,7 @@
 
 ## 5. Риски и честные ограничения
 
-1. **Ни один коммерческий телефон не «пойдёт сам по себе» от DoxaizOS без порта.** Нужен официальный порт LineageOS для конкретной модели (или Cuttlefish для разработки). Список устройств с 2 ГБ и официальным портом сужается — выбор за пользователем; рекомендация: Cuttlefish → затем устройство с живым LOS-портом.
+1. **«Любой телефон» = любой телефон с Project Treble (Android 8+).** DoxaizOS-GSI ставится на всю такую технику через fastboot/DSU ([GSI.md](GSI.md)), но на «капризных» моделях камера/Widevine/VoLTE могут работать хуже, чем в per-device порте; банковские приложения не пройдут Play Integrity; загрузчик нужно разблокировать (стирание данных). Без Treble — только per-device порт LineageOS под конкретную модель (или Cuttlefish для разработки). Рекомендация: DSU-тест на целевой модели → затем прошивка.
 2. **Первая сборка AOSP — это 60–90 ГБ синхронизации и 3–6 часов компиляции** на 16 потоках; ветки меняются, возможны мелкие сломки — CI их не ловит, ловит только локальный билд (раздел «Где собирать» в [BUILD.md](BUILD.md)).
 3. **low-RAM свойства и версия ветки привязаны:** значения `ro.lmk.*` и лимиты Dalvik — стартовая калибровка; имена параметров различаются между ветками Android; калибруем только по замерам.
 4. **PRESIGNED-подпись лаунчера** = HOME-роль без привилегий; для полного привилегированного режима нужен platform key (раздел «Подпись platform-ключом» в [LAUNCHER.md](LAUNCHER.md)).
@@ -133,6 +146,17 @@
 31. LowRAM-Flag-Plus (сообщество; пример продакшн-конфига low-RAM: heap 8/64/128, disable blur/multiuser) — https://github.com/JosFlix7/LowRAM-Flag-Plus/blob/Android-Go-Tweaks/system.prop
 32. Локальные манифесты: `<remove-project name="…"/>` (пример: Galaxy-MSM8916/local_manifests) — https://github.com/Galaxy-MSM8916/local_manifests/blob/master/lineage-14.1.xml
 33. Tuning Android for low RAM (слайды Google, 2014; «Project Svelte» — историческая основа low_ram и isLowRamDevice) — https://2net.co.uk/slides/android-lowmemory-abs-2014.pdf
+34. Generic System Image releases — официальные GSI Android 17 (vanilla и +GMS, ARM64/x86_64) — https://developer.android.com/topic/generic-system-image/releases
+35. Let's clone & build AOSP Android 17 (сборка AOSP/GSI; vbmeta --disable-verity; erase system; release-config lunch) — https://goyaljai.medium.com/lets-clone-build-aosp-android-17-659554404340
+36. Build & Flash custom AOSP GSI (vbmeta disable-verity; fastbootd; `m systemimage vbmetaimage`) — https://proandroiddev.com/building-flashing-a-custom-aosp-gsi-on-pixel-arm64-android-16-1313b4211c53
+37. XDA: Build AOSP GSI from source + flash with DSU (gzip system.img; adb push; VerificationActivity intent) — https://xdaforums.com/t/build-aosp-gsi-from-source-and-flash-it-with-dsu.4749904/
+38. DSU Sideloader (F-Droid; Android 10+; unlocked bootloader; dynamic partitions; ≥ 40 % свободного места) — https://f-droid.org/packages/vegabobo.dsusideloader/
+39. Dynamic System Updates deep dive (/data/gsi, sandbox, dynamic partitions, KEY_SYSTEM_SIZE/USERDATA_SIZE) — https://archive.ph/FsuMj
+40. Android 11 DSU Loader (родной DSU в Developer Options; для неподписанных GSI нужен unlocked bootloader) — https://lg-g4-xda.blogspot.com/2020/03/android-11s-dsu-loader-makes-it-easier.html
+41. TrebleDroid GSI list (LineageOS 24.0 GSI от Aizner/AndyYan, Android 17) — https://github.com/TrebleDroid/treble_experimentations/wiki/Generic-System-Image-%28GSI%29-list
+42. AndyYan GSI builds (aosp-pure-userdebug / lineage-*-gsi_arm64, Android 17) — https://sourceforge.net/projects/andyyan-gsi/files/aosp-pure-userdebug/
+43. AOSP — Generic system images (официально: GSI-таргеты, `lunch gsi_arm64-userdebug`, out/target/product/generic_arm64/system.img) — https://source.android.com/docs/core/tests/vts/gsi
+44. TrebleDroid — treble_experimentations (phhusson-патчи, vndklite для Go-устройств, GSI README) — https://github.com/TrebleDroid/treble_experimentations
 
 1. Afflictio — Mobile OS in Rust on the moss kernel — https://github.com/mel0k1/Afflictio
 2. moss — Rust Linux-compatible kernel (MIT) — https://github.com/hardliner66/moss

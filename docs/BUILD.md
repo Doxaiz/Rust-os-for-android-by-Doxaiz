@@ -144,6 +144,17 @@ lunch lineage_<model>-userdebug       # точное имя: без аргуме
 mka bacon                             # или m -j$(nproc); bacon = OTA zip
 ```
 
+### 8.3. GSI — образ для ЛЮБОГО устройства с Project Treble
+
+Одна универсальная сборка вместо per-device: `lunch doxaiz_arm64-userdebug` (combo из `vendor/doxaiz/AndroidProducts.mk`; наследует LOS-таргет `gsi_arm64` — ARM64, system-as-root, VNDK enforcement). Артефакты — `out/target/product/generic_arm64/{system.img,vbmeta.img}`. Проверка телефона за 30 секунд, прошивка, обязательный `--disable-verity`, безопасный тест через DSU и честный список ограничений — в [GSI.md](GSI.md).
+
+```bash
+scripts/build.sh ~/android/doxaiz doxaiz_arm64-userdebug
+# либо вручную: . build/envsetup.sh && lunch doxaiz_arm64-userdebug && m -j$(nproc)
+```
+
+Честно: DoxaizOS-GSI в этой песочнице никогда не собирался (нужно ≥ 32–64 ГБ ОЗУ и ≥ 200–400 ГБ диска, см. §0); команды проверены по документации AOSP/LineageOS, а не прогоном. [GSI.md](GSI.md) §6 перечисляет, что GSI не гарантирует (банки, Widevine L1, камера на «капризных» моделях).
+
 ## 9. Проверка на Cuttlefish
 
 ```bash
@@ -186,6 +197,8 @@ adb -s 0.0.0.0:6520 shell am start -W -a android.intent.action.MAIN \
 
 ## 11. Флеш на реальное устройство
 
+> Для GSI-образа (любой Treble-телефон) сценарий другой: `fastboot erase system` + `fastboot flash system system.img` + обязательный `--disable-verity --disable-verification` для vbmeta, плюс желательно сначала DSU-тест. Полный рецепт: [GSI.md](GSI.md) §4–5.
+
 ```bash
 # Разблокировка загрузчика (один раз, стёрет данные!):
 adb reboot bootloader
@@ -208,6 +221,8 @@ fastboot reboot
 |---|---|
 | `repo sync` рвется | перезапуск команды; `--depth=1`; зеркала `repo init --mirror` |
 | `lunch` не находит target | `lunch` без аргументов печатает список; у cuttlefish разные варианты в разных ветках |
+| `lunch` не видит `doxaiz_arm64-userdebug` | не применён overlay или нет `vendor/doxaiz/AndroidProducts.mk`; после `apply-overlay.sh` перезапустите `source build/envsetup.sh` |
+| GSI не грузится / bootloop на устройстве | проверьте `fastboot --disable-verity --disable-verification flash vbmeta …`; страницы 16K на Android 15+; целостность образа; сначала DSU-тест ([GSI.md](GSI.md)) |
 | Не виден `vendor/doxaiz` | apply-overlay.sh копирует в дерево; проверьте путь `vendor/doxaiz/products/doxaiz_base.mk` |
 | Сборка падает на DoxaizLauncher | нет `vendor/doxaiz/apps/DoxaizLauncher/DoxaizLauncher.apk` → `scripts/fetch-launcher-apk.sh <дерево>` |
 | `inherit-product` не найден | строка добавлена не в тот .mk; `grep -n inherit-product device/...` |

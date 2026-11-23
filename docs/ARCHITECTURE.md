@@ -96,10 +96,13 @@ DoxaizOS/
 │   ├── LAUNCHER.md              # интеграция Doxaiz Launcher
 │   ├── DEVICES.md               # как выбрать телефон под DoxaizOS
 │   ├── OTA.md                   # релизы и OTA-обновления (подпись, откат)
+│   ├── GSI.md                   # «на любой телефон»: GSI, DSU, прошивка
 │   └── ROADMAP.md               # этапы и критерии готовности
 ├── manifest/doxaiz.xml          # локальный манифест (исключения из AOSP)
-├── overlay/vendor/doxaiz/       # вендорский overlay: продукты, prebuilt APK,
-│                                # privapp-permissions, свойства low-RAM
+├── overlay/vendor/doxaiz/       # вендорский overlay: продукты (doxaiz_base для
+│                                # per-device/Cuttlefish, doxaiz_gsi для «любой Treble-телефон»),
+│                                # AndroidProducts.mk (lunch doxaiz_arm64-userdebug),
+│                                # prebuilt APK, privapp-permissions, свойства low-RAM
 ├── core/                        # Rust workspace
 │   └── crates/
 │       ├── doxaiz-perf/         # low-RAM профили + gen-buildprop (тесты)
@@ -116,3 +119,4 @@ DoxaizOS/
 2. **PRESIGNED-режим лаунчера по умолчанию** — проще и честнее (не нужен platform key), приватных же разрешений лаунчеру не нужно; привилегированный режим — опционален.
 3. **Чистый Rust вне AOSP не блокирует релиз:** Rust-инструментарий улучшает качество (тесты, CI), но ядро и runtime — из AOSP/LineageOS до тех пор, пока upstream не докажет обратное.
 4. **Cuttlefish вместо эмулятора AVD** — ближе к реальному устройству (KVM, отдельный init, реальный фреймворк) и автоматизируется в CI.
+5. **«На любой телефон» = GSI, а не маркетинговая фраза:** одна сборка `doxaiz_arm64` (Project Treble, Android 8+) вместо тысяч per-device портов; ядро и vendor берёт сам телефон. Чего GSI не гарантирует (камера, Widevine L1, Play Integrity, 16K-страницы) — честно перечислено в [GSI.md](GSI.md) §6; per-device порты остаются вторым контуром для лучшего поведения.
