@@ -9,7 +9,7 @@
 | Критерий | Зачем |
 |---|---|
 | Официальный порт **LineageOS** (не «unofficial») на [lineageos.org/devices](https://lineageos.org/devices/) | Иначе права на выпуск сборки и патчи — под вопросом; официальный порт = готовый device-tree и vendor |
-| **2 ГБ ОЗУ** | Целевой класс DoxaizOS; больше — только лучше |
+| **2 ГБ ОЗУ (или больше)** | Целевой класс DoxaizOS; больше — только лучше. ⚠️ На 2026-11 официальных портов именно на 2 ГБ почти не осталось — см. §7 |
 | 16–32+ ГБ хранилища | Сборка slim-образ (≤ 2,5 ГБ) + userdata + кэши; под 16 ГБ — экономия на приложениях |
 | Разблокируемый загрузчик | Без него прошивка невозможна |
 | Активные мейнтейнеры порта | Свежесть патчей безопасности и версии Android |
@@ -19,7 +19,7 @@
 1. Откройте [lineageos.org/devices](https://lineageos.org/devices/) — официальный список.
 2. Отфильтруйте по вендору/модели вашего телефона и посмотрите **актуальную версию Android и дату последней сборки** — порт «поддерживается», только если были сборки за последние ~3 месяца.
 3. Внимательно: у многих старых 2 ГБ-моделей официальные порты уже закрылись (LineageOS обычно держит 2–3 ветки Android). Если вашей модели нет среди официальных — unofficial-порт живёт, пока жив автор, и качество не гарантировано.
-4. Ниже по памяти идут кандидаты, у которых исторически были порты на 2 ГБ: линейки **Moto G (старые поколения), Redmi/POCO начального уровня, Galaxy A/J начального уровня** — но актуальность всегда проверяйте на сайте, а не в этой документации.
+4. Реальные low-end на LineageOS 24 (Android 17, по агрегаторам — проверяйте на lineageos.org): **Redmi Note 9** (3/4 ГБ), **Redmi Note 8/8T** (3/4/6), **Redmi Note 10S** (6), **Redmi 12C / POCO C55** (4/6), **Redmi 9** (3/4), **Moto G 5G (2024)**, **Xperia XA2** (3 ГБ). Именно 2 ГБ maintain'овых телефона больше нет — см. §7. [57][58]
 
 ## 3. Запасной вариант: Cuttlefish
 
@@ -48,3 +48,21 @@ fastboot flashing unlock   # сотрёт данные
 * Не ставить DoxaizOS на телефон без живого порта «по аналогии с похожей моделью» — bricked device вероятнее всего.
 * Не брать unofficial-порт без чтения темы порта и проверки даты последнего коммита в device-tree.
 * Не ждать, что 2 ГБ-телефон потянет стоковый тяжёлый софт — целевой сценарий DoxaizOS: HOME + базовые приложения + несколько Lite-приложений, а не 30 вкладок Chrome.
+
+## 7. 2 ГБ и LineageOS в 2026 году: честная картина (проверено 2026-11-23)
+
+* **Ни один maintained 2 ГБ-телефон на LineageOS 23/24 не найден.** Все исторические 2 ГБ-порты (Fairphone 2 / FP2, LG G2 / d801, LG K10 / m216, Huawei Mate 2 4G / mt2, Android One 2nd Gen / seed) официально помечены «no longer maintained» в wiki; все они на ядрах 3.4–3.10 — ниже GKI/Treble-минимума, поэтому и закрылись. [56]
+* **Jetson Nano 2 GB (porg)** — LineageOS 22.2, но это Android TV, не телефон. [56]
+* Минимальный поддерживаемый класс телефонов на LOS 24 — **3–4 ГБ** (Xperia XA2 3 ГБ; крупные Redmi Note — 4–6 ГБ). [57][58]
+* **Вывод для DoxaizOS:** на «железных» 2 ГБ единственный реальный путь сегодня — **DoxaizOS-GSI на 2 ГБ-телефоне с Project Treble** (Android 10+; см. [GSI.md](GSI.md)). Per-device официальный порт на 2 ГБ сегодня нереален.
+* Если железо можно выбрать: **3–4 ГБ low-end с живым портом** (например, Redmi Note 9/10S) — лучший компромисс «слабое, но реальное».
+* Unofficial 2 ГБ-сборки живут, пока жив мейнтейнер (например, Moto E7 Plus «guam» — unofficial LOS 21/22; сам аппарат — 4 ГБ) — качество не гарантировано; перед установкой читайте тему порта. [55]
+
+## Источники
+
+*Нумерация продолжает [RESEARCH.md](RESEARCH.md) §6 ([1]–[54]).*
+
+55. LineageOS Wiki — Moto E7 Plus (guam), unofficial LOS 21+, maintainers Rajin Gangadharan / Deivid Ignacio Parra (сам же аппарат 4 ГБ) — https://wiki.lineageos.org/devices/guam/variant1/
+56. LineageOS Wiki — «no longer maintained», 2 ГБ: FP2 https://wiki.lineageos.org/devices/FP2/ · LG G2 (T-Mobile) https://wiki.lineageos.org/devices/d801/ · LG K10 https://wiki.lineageos.org/devices/m216/ · Huawei Mate 2 4G https://wiki.lineageos.org/devices/mt2/ · Android One 2nd Gen https://wiki.lineageos.org/devices/seed/ · Jetson Nano 2 GB [Android TV] https://wiki.lineageos.org/devices/porg/variant2/
+57. LineageOS 24 (Android 17) — список устройств, включая low-end (Redmi 12C/POCO C55, Redmi Note 8/9/10S, Redmi 9, Moto G 5G 2024, Xperia XA2) — агрегатор, сверяйте с lineageos.org: https://www.getdroidtips.cv/2026/11/lineageos-24-android-17-download.html · https://androidphoria.com/desarrollo/lineageos-24-novedades-moviles
+58. cweiske.de — LineageOS devices (2026, включая guam) — https://cweiske.de/lineage-devices.htm

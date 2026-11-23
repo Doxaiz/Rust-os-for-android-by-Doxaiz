@@ -132,7 +132,7 @@
 
 ## 5. Риски и честные ограничения
 
-1. **«Любой телефон» = любой телефон с Project Treble (Android 8+).** DoxaizOS-GSI ставится на всю такую технику через fastboot/DSU ([GSI.md](GSI.md)), но на «капризных» моделях камера/Widevine/VoLTE могут работать хуже, чем в per-device порте; банковские приложения не пройдут Play Integrity; загрузчик нужно разблокировать (стирание данных). Без Treble — только per-device порт LineageOS под конкретную модель (или Cuttlefish для разработки). Рекомендация: DSU-тест на целевой модели → затем прошивка.
+1. **«Любой телефон» = любой телефон с Project Treble (Android 8+).** NB: maintained 2 ГБ-портов LineageOS в 2026 не осталось ([DEVICES.md](DEVICES.md) §7) — на железных 2 ГБ единственный рабочий путь сегодня = DoxaizOS-GSI; per-device порт реалистичен на 3–4 ГБ. DoxaizOS-GSI ставится на всю такую технику через fastboot/DSU ([GSI.md](GSI.md)), но на «капризных» моделях камера/Widevine/VoLTE могут работать хуже, чем в per-device порте; банковские приложения не пройдут Play Integrity; загрузчик нужно разблокировать (стирание данных). Без Treble — только per-device порт LineageOS под конкретную модель (или Cuttlefish для разработки). Рекомендация: DSU-тест на целевой модели → затем прошивка.
 2. **Первая сборка AOSP — это 60–90 ГБ синхронизации и 3–6 часов компиляции** на 16 потоках; ветки меняются, возможны мелкие сломки — CI их не ловит, ловит только локальный билд (раздел «Где собирать» в [BUILD.md](BUILD.md)).
 3. **low-RAM свойства и версия ветки привязаны:** значения `ro.lmk.*` и лимиты Dalvik — стартовая калибровка; имена параметров различаются между ветками Android; калибруем только по замерам.
 4. **PRESIGNED-подпись лаунчера** = HOME-роль без привилегий; для полного привилегированного режима нужен platform key (раздел «Подпись platform-ключом» в [LAUNCHER.md](LAUNCHER.md)).
@@ -173,9 +173,13 @@
 52. Hubris (Oxide, MPL-2.0) — https://github.com/oxidecomputer/hubris ; RustyHermit → hermit-os/hermit-rs (unikernel, Apache-2.0) — https://github.com/hermit-os/hermit-rs
 53. Theseus (MIT, заглох 2024-09) + каталог Rust-ОС — https://github.com/theseus-os/Theseus ; https://github.com/flosse/rust-os-comparison
 54. Afflictio (GPL-3.0): Linux-ядро + Rust userspace, скелет — https://github.com/mel0k1/Afflictio
+55. LineageOS Wiki — Moto E7 Plus (guam), unofficial LOS 21+ (сам аппарат 4 ГБ) — https://wiki.lineageos.org/devices/guam/variant1/
+56. LineageOS Wiki — 2 ГБ «no longer maintained»: FP2, d801 (G2 T-Mo), m216 (LG K10), mt2 (Mate 2 4G), seed (Android One 2nd Gen); Jetson Nano 2 GB [Android TV] — https://wiki.lineageos.org/devices/FP2/
+57. LineageOS 24 (Android 17), low-end список (Redmi 12C/POCO C55, Redmi Note 8/9/10S, Redmi 9, Moto G 5G 2024, Xperia XA2) — https://www.getdroidtips.cv/2026/11/lineageos-24-android-17-download.html
+58. cweiske.de — LineageOS devices 2026 — https://cweiske.de/lineage-devices.htm
 
-1. Afflictio — Mobile OS in Rust on the moss kernel — https://github.com/mel0k1/Afflictio
-2. moss — Rust Linux-compatible kernel (MIT) — https://github.com/hardliner66/moss
+1. Afflictio (GPL-3.0) — Mobile OS на базе ядра Linux + userspace на Rust (скелет) — https://github.com/mel0k1/Afflictio
+2. moss — Linux-compatible kernel на Rust (MIT; переехал → hexagonal-sun/moss-kernel) — https://github.com/hexagonal-sun/moss-kernel
 3. moss: a Linux-compatible kernel written in Rust (OSNews, 2025-11) — https://www.osnews.com/story/143918/moss-a-linux-compatible-kernel-written-in-rust/
 4. Rust for Linux — https://en.wikipedia.org/wiki/Rust_for_Linux
 5. LPC 2025 — Rust for Linux (PDF, включая «Binder на Rust в upstream» и «Android 6.12 — ядро с production Rust-драйвером») — https://lpc.events/event/19/contributions/2068/attachments/1859/3981/2025-12-11%20-%20LPC%202025%20-%20Rust%20for%20Linux.pdf
