@@ -1,0 +1,22 @@
+# DoxaizOS — рабочее пространство Rust.
+#
+# Здесь живёт весь Rust-код DoxaizOS, который работает вне дерева AOSP:
+#   * `doxaiz-perf` — профили и генераторы конфигурации низкого ОЗУ (низкоуровневая логика ОС);
+#   * `doxaiz-xtask` — задачи инструментария (верификация репозитория, генерация build.prop).
+#
+# В дереве AOSP Rust поддерживается наравне с C++ (с 2021), поэтому новые
+# системные компоненты DoxaizOS, которым не нужны приватные API фреймворка,
+# пишутся именно здесь на безопасном Rust без единой внешней зависимости.
+# См. docs/ARCHITECTURE.md и docs/ROADMAP.md.
+
+[workspace]
+resolver = "2"
+members = [
+    "crates/doxaiz-perf",
+    "crates/doxaiz-xtask",
+]
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz"

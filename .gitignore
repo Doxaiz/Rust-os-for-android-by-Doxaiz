@@ -1,0 +1,34 @@
+# Rust
+target/
+**/*.rs.bk
+Cargo.lock.bak
+
+# Сборка AOSP и артефакты
+out/
+.repo/
+*.img
+*.zip
+*.apk
+!**/placeholder*.apk
+
+# Секреты сборки (никогда не коммитим)
+*.keystore
+*.pk8
+*.pem
+platform.x509.pem
+keystore/
+
+# IDE / ОС
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Временное
+/tmp/
+*.log
+
+# Python
+__pycache__/
+*.pyc

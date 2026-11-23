@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  DoxaizOS — privapp-permissions allowlist для системного приложения
+  com.doxaiz.launcher (только для варианта сборки «platform key»,
+  см. overlay/vendor/doxaiz/apps/DoxaizLauncher/Android.mk).
+
+  На Android 10+ privileged permissions выдаются только тем приложениям,
+  чьи permission'ы явно перечислены в этом файле. Пустой список = приложению
+  не выдаётся ни одной privileged permission. Это осознанное безопасное
+  значение по умолчанию: лаунчеру для базовой работы privileged permissions
+  НЕ нужны (роль HOME — обычная, несистемная).
+
+  Если в будущем добавите privileged-функциональность (например, установку
+  APK без подтверждения), перечислите её здесь явно, например:
+
+  <privapp-permissions package="com.doxaiz.launcher">
+      <permission name="android.permission.INSTALL_PACKAGES" />
+  </privapp-permissions>
+
+  Вариант PRESIGNED (значение по умолчанию) этот файл игнорирует.
+-->
+<config>
+</config>

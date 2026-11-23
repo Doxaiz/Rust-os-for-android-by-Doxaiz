@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'arena/**']
+  pull_request:
+
+jobs:
+  rust:
+    name: Rust (test + verify)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable)
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustc --version
+          cargo --version
+
+      - name: cargo test
+        working-directory: core
+        run: cargo test --workspace --all-targets
+
+      - name: doxaiz-xtask verify
+        working-directory: core
+        run: cargo run -p doxaiz-xtask -- verify
+
+      - name: gen-prop smoke test (2 ГБ low-RAM профиль)
+        working-directory: core
+        run: |
+          cargo run -p doxaiz-xtask -- gen-prop --ram-mb 2048 | tee /tmp/lowram.prop
+          grep -q 'ro.config.low_ram=true' /tmp/lowram.prop
+          grep -q 'dalvik.vm.heapgrowthlimit=96m' /tmp/lowram.prop
+
+  docs:
+    name: Docs (ссылки)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Markdown link check
+        run: python3 scripts/check-docs-links.py
+
+  scripts:
+    name: Scripts (синтаксис + XML)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: bash -n
+        run: |
+          for f in scripts/*.sh; do
+            echo "bash -n $f"
+            bash -n "$f"
+          done
+
+      - name: shellcheck (если есть в образе)
+        run: |
+          if command -v shellcheck >/dev/null 2>&1; then
+            shellcheck -S warning scripts/*.sh
+          else
+            echo "shellcheck не установлен — пропускаю (не критично)"
+          fi
+
+      - name: python syntax
+        run: python3 -m py_compile scripts/check-docs-links.py
+
+      - name: XML валиден
+        run: |
+          python3 - <<'EOF'
+          import xml.etree.ElementTree as ET
+          for f in ["manifest/doxaiz.xml",
+                    "overlay/vendor/doxaiz/etc/privapp-permissions-doxaiz.xml"]:
+              ET.parse(f)
+              print("ok", f)
+          EOF
