@@ -71,6 +71,7 @@
 | AOSP platform | Bluetooth, DNS resolver, Keystore, медиа — уже Rust | наследуем вместе с AOSP, не трогаем |
 | `core/crates/doxaiz-perf` | Генератор low-RAM профиля (build.prop), единственный источник истины для low-RAM свойств | в этом репо, тестами |
 | `core/crates/doxaiz-xtask` | Верификация репозитория, генерация build.prop, будущие задачи релиза | в этом репо |
+| `core/crates/doxaiz-metrics` | Парсер `/proc/meminfo` + `doxaiz-check`: автоматическая проверка бюджета памяти | в этом репо, тестами |
 | ROADMAP → этап 6 | `doxaiz-sys`: Binder/AIDL-сервис на Rust (память, профиль, диагностика) для лаунчера | не реализован |
 
 ## 6. Подпись и verified boot
@@ -85,6 +86,7 @@
 DoxaizOS/
 ├── README.md                    # обзор и быстрый старт
 ├── LICENSE                      # MIT
+├── CHANGELOG.md                 # история изменений
 ├── docs/                        # вся документация (русский)
 │   ├── RESEARCH.md              # исследование (что, почему, источники)
 │   ├── ARCHITECTURE.md          # этот файл
@@ -92,14 +94,19 @@ DoxaizOS/
 │   ├── PERFORMANCE.md           # low-RAM тюнинг и измерение
 │   ├── SECURITY.md              # безопасность и подпись
 │   ├── LAUNCHER.md              # интеграция Doxaiz Launcher
+│   ├── DEVICES.md               # как выбрать телефон под DoxaizOS
 │   └── ROADMAP.md               # этапы и критерии готовности
 ├── manifest/doxaiz.xml          # локальный манифест (исключения из AOSP)
 ├── overlay/vendor/doxaiz/       # вендорский overlay: продукты, prebuilt APK,
 │                                # privapp-permissions, свойства low-RAM
-├── core/                        # Rust workspace (doxaiz-perf, doxaiz-xtask)
+├── core/                        # Rust workspace
+│   └── crates/
+│       ├── doxaiz-perf/         # low-RAM профили + gen-buildprop (тесты)
+│       ├── doxaiz-xtask/        # verify репозитория, gen-prop
+│       └── doxaiz-metrics/      # парсер meminfo + doxaiz-check (бюджет памяти)
 ├── scripts/                     # bash/python инструментарий сборки и проверки
 ├── assets/logo.svg              # логотип
-└── .github/workflows/ci.yml     # CI: cargo test, проверка ссылок и overlay
+└── .github/workflows/ci.yml     # CI: cargo test, clippy, проверка ссылок и overlay
 ```
 
 ## 8. Компромиссы, которые мы приняли осознанно

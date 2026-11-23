@@ -37,6 +37,8 @@ const REQUIRED: &[(&str, &str)] = &[
     ("docs/SECURITY.md", "SELinux"),
     ("docs/ROADMAP.md", "Cuttlefish"),
     ("docs/LAUNCHER.md", "com.doxaiz.launcher"),
+    ("docs/DEVICES.md", "LineageOS"),
+    ("CHANGELOG.md", "DoxaizOS"),
     ("manifest/doxaiz.xml", "<manifest"),
     (
         "overlay/vendor/doxaiz/products/doxaiz_base.mk",
@@ -56,6 +58,9 @@ const REQUIRED: &[(&str, &str)] = &[
     ),
     ("scripts/apply-overlay.sh", "vendor/doxaiz"),
     ("scripts/fetch-launcher-apk.sh", "com.doxaiz.launcher"),
+    ("scripts/preflight.sh", "AOSP"),
+    ("core/crates/doxaiz-metrics/src/lib.rs", "MemAvailable"),
+    ("core/crates/doxaiz-metrics/src/main.rs", "doxaiz-check"),
 ];
 
 fn cmd_verify() -> ExitCode {

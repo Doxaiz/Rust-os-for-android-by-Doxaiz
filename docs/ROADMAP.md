@@ -28,6 +28,7 @@
 ### Этап 4 — Low-RAM профиль и замеры
 
 * Прогнать [PERFORMANCE.md](PERFORMANCE.md) на Cuttlefish: zram 50 %, `ro.config.low_ram`, куча Dalvik, отсутствие GMS.
+* Проверить бюджет машинно: `adb shell cat /proc/meminfo > meminfo.txt && cd core && cargo run -p doxaiz-metrics -- meminfo.txt` (PASS/FAIL по §4 ARCHITECTURE).
 * Снять базовые метрики: MemAvailable, PSS system_server/Launcher, холодный старт HOME, df.
 * Критерий приёмки: таблица результатов добавлена в docs (значения на момент сборки), цели по памяти выполнены ≥ 80 % (или задокументировано почему нет).
 

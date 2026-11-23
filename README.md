@@ -44,16 +44,24 @@ cargo test --workspace
 cargo run -p doxaiz-xtask -- verify
 ```
 
+Проверить бюджет памяти реального устройства (сохраняет `meminfo.txt` из adb):
+
+```bash
+adb shell cat /proc/meminfo > meminfo.txt
+cargo run -p doxaiz-metrics -- meminfo.txt   # PASS/FAIL по бюджету из docs/ARCHITECTURE.md §4
+```
+
 ## Состав репозитория
 
 ```
-docs/          вся документация: исследование, архитектура, сборка, замеры, безопасность
+docs/          документация: RESEARCH, ARCHITECTURE, BUILD, PERFORMANCE, SECURITY, LAUNCHER, ROADMAP, DEVICES
 manifest/      локальный манифест для дерева AOSP/LineageOS (исключения automotive/TV)
 overlay/       вендорский overlay vendor/doxaiz: low-RAM свойства, prebuilt лаунчера, подпись
-core/          Rust workspace: doxaiz-perf (low-RAM профиль, тесты), doxaiz-xtask (проверки)
-scripts/       apply-overlay.sh, fetch-launcher-apk.sh, build.sh, cuttlefish-run.sh, check-docs-links.py
+core/          Rust workspace: doxaiz-perf (low-RAM профиль), doxaiz-xtask (проверки),
+               doxaiz-metrics (бюджет памяти: парсер meminfo + doxaiz-check)
+scripts/       apply-overlay.sh, fetch-launcher-apk.sh, build.sh, preflight.sh, cuttlefish-run.sh, check-docs-links.py
 assets/        логотип
-.github/       CI: Rust-тесты, проверка ссылок, синтаксис скриптов, валидность XML
+.github/       CI: Rust-тесты, clippy (информативно), проверка ссылок, синтаксис скриптов, валидность XML
 ```
 
 ## Что уже готово и что нет (честно)
@@ -63,6 +71,7 @@ assets/        логотип
 | Исследование, архитектура, low-RAM профиль | ✅ готово (этот релиз) |
 | Вендорский overlay + интеграция лаунчера как prebuilt | ✅ готово (PRESIGNED; platform key — [docs/LAUNCHER.md](docs/LAUNCHER.md)) |
 | Rust-инструментарий с тестами и CI | ✅ готово |
+| Автопроверка бюджета памяти (`doxaiz-check`) | ✅ готово |
 | Первый образ Cuttlefish с DoxaizOS | ⏳ не собран (нужен ПК; смотрите BUILD.md) |
 | Сборка для реального устройства с 2 ГБ | ⏳ нет (нужен официальный порт LineageOS; см. ROADMAP этап 5) |
 | Чистая Rust-ОС с нуля (Afflictio/moss) | 🔭 исследовательский трек, не блокирует основную линию |

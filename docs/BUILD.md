@@ -6,6 +6,14 @@ DoxaizOS — это «slim-профиль» поверх LineageOS/AOSP: сво�
 
 ## 0. Проверка окружения
 
+Проще всего — автоматически:
+
+```bash
+scripts/preflight.sh ~/doxaiz-os
+```
+
+Он проверит Linux/arch, ОЗУ (≥ 12 ГБ, иначе FAIL), свободное место (≥ 120 ГБ — warn, ≥ 250 ГБ — ok), ядра, наличие repo/git/java/python3 и /dev/kvm (для Cuttlefish). Либо вручную:
+
 ```bash
 nproc                       # ≥ 8 желательно
 free -g                     # ≥ 12–16 ГБ
@@ -106,6 +114,8 @@ m -j$(nproc)
 Если `aosp_cf_x86_64_phone` в вашей ветке не нашёлся — `lunch` покажет список; берите ближайший cuttlefish target (`aosp_cf_x86_64_only_phone-…` в некоторых ветках).
 
 ### 8.2. Реальное устройство
+
+Выбор устройства (официальный порт LineageOS, 2 ГБ ОЗУ): [DEVICES.md](DEVICES.md).
 
 ```bash
 source build/envsetup.sh

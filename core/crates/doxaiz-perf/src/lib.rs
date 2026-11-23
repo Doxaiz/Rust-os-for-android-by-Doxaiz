@@ -111,6 +111,27 @@ mod tests {
     }
 
     #[test]
+    fn just_above_two_gb_uses_middle_profile() {
+        let p = profile_for(2049);
+        assert!(p.low_ram);
+        assert_eq!(p.dalvik_heap_growth_limit_mb, 144);
+    }
+
+    #[test]
+    fn just_above_threshold_is_not_low_ram() {
+        let p = profile_for(LOW_RAM_THRESHOLD_MB + 1);
+        assert!(!p.low_ram);
+        assert_eq!(p.dalvik_heap_growth_limit_mb, 256);
+    }
+
+    #[test]
+    fn one_gb_device_gets_half_zram() {
+        let p = profile_for(1024);
+        assert_eq!(p.zram_mb, 512);
+        assert!(p.low_ram);
+    }
+
+    #[test]
     fn three_gb_device_is_low_ram_with_bigger_heap() {
         let p = profile_for(3072);
         assert!(p.low_ram);

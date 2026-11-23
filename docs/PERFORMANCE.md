@@ -112,6 +112,16 @@ adb shell cat /proc/pressure/memory; adb shell cat /proc/pressure/cpu; adb shell
 
 Целевые значения: [ARCHITECTURE.md](ARCHITECTURE.md) §4. Правило: не оптимизировали то, что не замерили.
 
+Автопроверка бюджета (без вычислений «в уме»):
+
+```bash
+adb shell cat /proc/meminfo > meminfo.txt
+cd core && cargo run -p doxaiz-metrics -- meminfo.txt
+# PASS MemAvailable = 1280 МБ (бюджет >= 1024 МБ)
+# PASS SwapTotal = 1000 МБ (zram?)
+# код выхода 1, если хоть одна проверка провалилась — удобно в скриптах
+```
+
 ## 9. Золотые правила DoxaizOS
 
 1. Свободный ОЗУ важнее «дополнительных функций».

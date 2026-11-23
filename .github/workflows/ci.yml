@@ -23,6 +23,13 @@ jobs:
         working-directory: core
         run: cargo test --workspace --all-targets
 
+      - name: cargo clippy (информативно, не блокирует)
+        working-directory: core
+        continue-on-error: true
+        run: |
+          rustup component add clippy
+          cargo clippy --workspace --all-targets
+
       - name: doxaiz-xtask verify
         working-directory: core
         run: cargo run -p doxaiz-xtask -- verify
