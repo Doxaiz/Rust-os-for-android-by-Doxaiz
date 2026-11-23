@@ -2,6 +2,14 @@
 
 Doxaiz Launcher ([репозиторий](https://github.com/Doxaiz/Doxaiz-android-launcher-), MIT, applicationId `com.doxaiz.launcher`) — это рабочий стол DoxaizOS: русский интерфейс, каталог приложений, своя шторка, панель ОЗУ, блокировка экрана. В DoxaizOS он встроен в системный образ как prebuilt-приложение.
 
+> **Факты проверены по исходному коду лаунчера (дата доступа: 2026-11-23, ветка `main`, v1.0.0):**
+> * `applicationId`/`namespace` = `com.doxaiz.launcher`; `minSdk 26` · `targetSdk 34` · `compileSdk 34`; `versionName 1.0.0` (versionCode 1).
+> * `MainActivity`: intent-filters `MAIN`+`HOME`+`DEFAULT` и `MAIN`+`LAUNCHER`, `launchMode singleTask`, `excludeFromRecents`, portrait.
+> * Разрешения включают `QUERY_ALL_PACKAGES` (каталог приложений; нормально для системного prebuilt, Play не нужен), `EXPAND_STATUS_BAR` (шторка), `KILL_BACKGROUND_PROCESSES` («Активные приложения»), `USE_BIOMETRIC` (приватное пространство), `WRITE_SETTINGS` (опциональная яркость/поворот), accessibility-сервис (опционально, двойной тап → выключение экрана, Android 9+). **Нет `INTERNET`** — телеметрии быть не может физически.
+> * Аварийный экран `SafeModeActivity` (без HOME-фильтра намеренно) и опциональный `ShizukuProvider`.
+> * APK из релиза v1.0.0: `doxaiz-1.0.0.apk`, 873 735 байт (~854 КиБ); релиз публикует `apk-sha256.txt` (скрипт `fetch-launcher-apk.sh` сверяет автоматически).
+> * CI лаунчера: эмулятор **API 34 (Android 14)**, снимает кадровые метрики (`.github/workflows/ci.yml` там же).
+
 ## 1. Роль HOME
 
 Android получает домашний экран через intent-filter `MAIN` + category `HOME`. У лаунчера он есть. Проверка на устройстве:

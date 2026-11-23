@@ -178,6 +178,6 @@
 18. Cuttlefish getting started / гайд на русском-английском (включая branch aosp-main-throttled, aosp_cf_arm64_only_phone) — https://medium.com/@aruncse2k20/launch-cattlefish-aosp-033b59d446a4 ; официально: https://android.googlesource.com/device/google/cuttlefish/
 19. LineageOS/android — официальный манифест (проверено: ветка lineage-24.0 → AOSP refs/tags/android-17.0.0_r1; источник: default.xml) — https://github.com/LineageOS/android
 20. 9 лучших кастомных прошивок 2025 (LineageOS как «самый легковесный чистый опыт») — https://classicalit.com/best-custom-roms-for-android/ ; сравнение ОС — https://en.wikipedia.org/wiki/Comparison_of_mobile_operating_systems
-21. Doxaiz Launcher — рабочий стол DoxaizOS (репозиторий, MIT) — https://github.com/Doxaiz/Doxaiz-android-launcher-
+21. Doxaiz Launcher — рабочий стол DoxaizOS (репозиторий, MIT) — https://github.com/Doxaiz/Doxaiz-android-launcher- ; проверено по `main` @ v1.0.0 (2026-11-23): applicationId `com.doxaiz.launcher`, minSdk 26 / targetSdk 34, intent-filter `MAIN`+`HOME`, без `INTERNET`, релизный APK ~854 КиБ + `apk-sha256.txt`, CI на эмуляторе API 34
 22. Rust for Android App Developers: обзор состояния Rust в Android (обзорный источник; цифра «1+ млн строк Rust к 2023») — https://extensionbooster.net/blog/rust-android-app-development-when-to-use-jni-ndk-guide/
 23. Google Go / Android Go на 250 млн устройств (Android 13 Go) — The Verge via Gigazine — https://gigazine.net/gsc_news/en/20221020-android-13-go-edition/
