@@ -38,6 +38,7 @@ const REQUIRED: &[(&str, &str)] = &[
     ("docs/ROADMAP.md", "Cuttlefish"),
     ("docs/LAUNCHER.md", "com.doxaiz.launcher"),
     ("docs/DEVICES.md", "LineageOS"),
+    ("docs/OTA.md", "ota_from_target_files"),
     ("CHANGELOG.md", "DoxaizOS"),
     ("manifest/doxaiz.xml", "<manifest"),
     (
@@ -59,7 +60,9 @@ const REQUIRED: &[(&str, &str)] = &[
     ("scripts/apply-overlay.sh", "vendor/doxaiz"),
     ("scripts/fetch-launcher-apk.sh", "com.doxaiz.launcher"),
     ("scripts/preflight.sh", "AOSP"),
-    ("core/crates/doxaiz-metrics/src/lib.rs", "MemAvailable"),
+    ("scripts/ota.sh", "ota_from_target_files"),
+    ("core/crates/doxaiz-metrics/src/lib.rs", "meminfo"),
+    ("core/crates/doxaiz-metrics/src/probe.rs", "Janky"),
     ("core/crates/doxaiz-metrics/src/main.rs", "doxaiz-check"),
 ];
 

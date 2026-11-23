@@ -28,7 +28,7 @@
 ### Этап 4 — Low-RAM профиль и замеры
 
 * Прогнать [PERFORMANCE.md](PERFORMANCE.md) на Cuttlefish: zram 50 %, `ro.config.low_ram`, куча Dalvik, отсутствие GMS.
-* Проверить бюджет машинно: `adb shell cat /proc/meminfo > meminfo.txt && cd core && cargo run -p doxaiz-metrics -- meminfo.txt` (PASS/FAIL по §4 ARCHITECTURE).
+* Проверить бюджеты машинно: `cargo run -p doxaiz-metrics -- meminfo meminfo.txt`, `… coldstart coldstart.txt`, `… jank gfx.txt`, `… pss pss.txt` (PASS/FAIL по ARCHITECTURE.md §4).
 * Снять базовые метрики: MemAvailable, PSS system_server/Launcher, холодный старт HOME, df.
 * Критерий приёмки: таблица результатов добавлена в docs (значения на момент сборки), цели по памяти выполнены ≥ 80 % (или задокументировано почему нет).
 
@@ -46,7 +46,7 @@
 
 ### Этап 7 — Релиз и обновления
 
-* `user`-сборки, release keys, подписанный OTA (LineageOS recovery).
+* `user`-сборки, release keys, подписанный OTA (LineageOS recovery) — пайплайн и чеклист: [OTA.md](OTA.md), генерация: `scripts/ota.sh`.
 * CI: сборка артефактов OTA по тегу (на self-hosted runner или на ПК мейнтейнера; публичный GitHub runner для AOSP недостаточен по диску).
 * Критерий приёмки: обновление по Wi-Fi поверх установленного DoxaizOS без потери данных.
 

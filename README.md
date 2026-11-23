@@ -44,22 +44,28 @@ cargo test --workspace
 cargo run -p doxaiz-xtask -- verify
 ```
 
-Проверить бюджет памяти реального устройства (сохраняет `meminfo.txt` из adb):
+Проверить бюджеты реального устройства (диагностика сохраняется из adb):
 
 ```bash
 adb shell cat /proc/meminfo > meminfo.txt
-cargo run -p doxaiz-metrics -- meminfo.txt   # PASS/FAIL по бюджету из docs/ARCHITECTURE.md §4
+adb shell am start -W -a android.intent.action.MAIN -c android.intent.category.HOME > coldstart.txt
+adb shell dumpsys gfxinfo com.doxaiz.launcher > gfx.txt
+adb shell dumpsys meminfo com.doxaiz.launcher > pss.txt
+cargo run -p doxaiz-metrics -- meminfo meminfo.txt      # RAM ≥ 1,0 ГБ свободного, zram
+cargo run -p doxaiz-metrics -- coldstart coldstart.txt  # холодный старт HOME ≤ 400 мс
+cargo run -p doxaiz-metrics -- jank gfx.txt             # джанки кадров ≤ 5 %
+cargo run -p doxaiz-metrics -- pss pss.txt              # PSS лаунчера ≤ 60 МБ
 ```
 
 ## Состав репозитория
 
 ```
-docs/          документация: RESEARCH, ARCHITECTURE, BUILD, PERFORMANCE, SECURITY, LAUNCHER, ROADMAP, DEVICES
+docs/          документация: RESEARCH, ARCHITECTURE, BUILD, PERFORMANCE, SECURITY, LAUNCHER, ROADMAP, DEVICES, OTA
 manifest/      локальный манифест для дерева AOSP/LineageOS (исключения automotive/TV)
 overlay/       вендорский overlay vendor/doxaiz: low-RAM свойства, prebuilt лаунчера, подпись
 core/          Rust workspace: doxaiz-perf (low-RAM профиль), doxaiz-xtask (проверки),
                doxaiz-metrics (бюджет памяти: парсер meminfo + doxaiz-check)
-scripts/       apply-overlay.sh, fetch-launcher-apk.sh, build.sh, preflight.sh, cuttlefish-run.sh, check-docs-links.py
+scripts/       apply-overlay.sh, fetch-launcher-apk.sh, build.sh, preflight.sh, ota.sh, cuttlefish-run.sh, check-docs-links.py
 assets/        логотип
 .github/       CI: Rust-тесты, clippy (информативно), проверка ссылок, синтаксис скриптов, валидность XML
 ```

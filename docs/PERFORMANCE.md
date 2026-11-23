@@ -115,10 +115,19 @@ adb shell cat /proc/pressure/memory; adb shell cat /proc/pressure/cpu; adb shell
 Автопроверка бюджета (без вычислений «в уме»):
 
 ```bash
+# 1) память:
 adb shell cat /proc/meminfo > meminfo.txt
-cd core && cargo run -p doxaiz-metrics -- meminfo.txt
-# PASS MemAvailable = 1280 МБ (бюджет >= 1024 МБ)
-# PASS SwapTotal = 1000 МБ (zram?)
+cargo run -p doxaiz-metrics -- meminfo meminfo.txt
+# 2) холодный старт HOME (предварительно force-stop):
+adb shell am force-stop com.doxaiz.launcher
+adb shell am start -W -a android.intent.action.MAIN -c android.intent.category.HOME > coldstart.txt
+cargo run -p doxaiz-metrics -- coldstart coldstart.txt
+# 3) джанки кадров (после прогона анимации/сценария):
+adb shell dumpsys gfxinfo com.doxaiz.launcher > gfx.txt
+cargo run -p doxaiz-metrics -- jank gfx.txt
+# 4) PSS лаунчера:
+adb shell dumpsys meminfo com.doxaiz.launcher > pss.txt
+cargo run -p doxaiz-metrics -- pss pss.txt
 # код выхода 1, если хоть одна проверка провалилась — удобно в скриптах
 ```
 

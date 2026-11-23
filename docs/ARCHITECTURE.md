@@ -71,7 +71,7 @@
 | AOSP platform | Bluetooth, DNS resolver, Keystore, медиа — уже Rust | наследуем вместе с AOSP, не трогаем |
 | `core/crates/doxaiz-perf` | Генератор low-RAM профиля (build.prop), единственный источник истины для low-RAM свойств | в этом репо, тестами |
 | `core/crates/doxaiz-xtask` | Верификация репозитория, генерация build.prop, будущие задачи релиза | в этом репо |
-| `core/crates/doxaiz-metrics` | Парсер `/proc/meminfo` + `doxaiz-check`: автоматическая проверка бюджета памяти | в этом репо, тестами |
+| `core/crates/doxaiz-metrics` | Парсеры `/proc/meminfo`, `am start -W`, `dumpsys gfxinfo`, `dumpsys meminfo <pkg>` + `doxaiz-check`: автоматическая проверка бюджетов | в этом репо, тестами |
 | ROADMAP → этап 6 | `doxaiz-sys`: Binder/AIDL-сервис на Rust (память, профиль, диагностика) для лаунчера | не реализован |
 
 ## 6. Подпись и verified boot
@@ -95,6 +95,7 @@ DoxaizOS/
 │   ├── SECURITY.md              # безопасность и подпись
 │   ├── LAUNCHER.md              # интеграция Doxaiz Launcher
 │   ├── DEVICES.md               # как выбрать телефон под DoxaizOS
+│   ├── OTA.md                   # релизы и OTA-обновления (подпись, откат)
 │   └── ROADMAP.md               # этапы и критерии готовности
 ├── manifest/doxaiz.xml          # локальный манифест (исключения из AOSP)
 ├── overlay/vendor/doxaiz/       # вендорский overlay: продукты, prebuilt APK,
@@ -104,7 +105,7 @@ DoxaizOS/
 │       ├── doxaiz-perf/         # low-RAM профили + gen-buildprop (тесты)
 │       ├── doxaiz-xtask/        # verify репозитория, gen-prop
 │       └── doxaiz-metrics/      # парсер meminfo + doxaiz-check (бюджет памяти)
-├── scripts/                     # bash/python инструментарий сборки и проверки
+├── scripts/                     # bash/python инструментарий сборки и проверки (build/preflight/ota/…)
 ├── assets/logo.svg              # логотип
 └── .github/workflows/ci.yml     # CI: cargo test, clippy, проверка ссылок и overlay
 ```
