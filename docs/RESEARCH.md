@@ -24,14 +24,19 @@
 
 ### 2.1. Операционные системы и ядра на Rust
 
-* **Afflictio** — мобильная ОС на Rust для AArch64 поверх ядра **moss**. Грузится в QEMU, монтирует ext4, поднимает сеть (smoltcp + DHCP), есть свой init и shell, proof-of-concept композитор. MIT. Честный статус: «загружаемый скелет». [1]
-* **moss** (hardliner66/moss) — Unix-like Linux-совместимое ядро на Rust и AArch64-ассемблере: MMU AArch64, CoW, slab-аллокатор, ~51 Linux-syscall, запускает BusyBox/bash, тесты 230+. Проверено на Raspberry Pi 4, Jetson Nano, AMD Kria, imx8. Лицензия MIT. [2][3]
-* **Redox OS** — микроядерная Unix-like ОС на Rust; рабочий стол Orbital; к телефонам как к цели не приблизился. [8]
+* **Afflictio** — мобильная ОС для AArch64: ядро Linux + userspace на Rust; грузится в QEMU, собственные init/shell; GPL-3.0, активна, статус «скелет». [1][5][54]
+* **moss** (hexagonal-sun/moss-kernel, бывший hardliner66/moss) — Linux-совместимое Unix-like ядро на Rust + AArch64 asm: MMU AArch64, SMP/EEVDF, 109 syscalls; грузит Arch Linux aarch64 (bash, BusyBox, coreutils, strace); проверено на Raspberry Pi 4, Jetson Nano, AMD Kria, i.MX8; MIT, ~2k★. Сеть (TCP/IP) и полноценная ФС — в разработке. [2][3][48]
+* **Redox OS** — микроядерная ОС на Rust: 0.9.0 (2025), x86_64 «golden», i686 «generally working», aarch64 experimental (RPi 3B+ до shell; начальный SMP для aarch64); рабочий стол Orbital; USB mass-storage в разработке; телефоном не цель. 16.7k★. [8][49]
 * **Fuchsia** (Google) — капабилити-микроядро Zircon (C/C++/Rust), для телефонов не заявлена; важна как источник идей (компоненты, capabilities). [9]
-* **BlueOS** (Vivo) — Rust-ядро, используется на устройствах компании; подтверждение, что Rust в мобильных ядрах — серийная практика. [10]
-* **Rust-ядра совместимости с Linux:** Asterinas (MPL), Maestro (AGPL), Kerla (MIT/Apache-2.0) — активные проекты, но все без драйверной базы телефона. [3]
+* **BlueOS (BlueKernel, Vivo)** — единственная «настоящая» Rust-ОС в серии: ядро на Rust с 2018, открыто 2025-07-31 (Apache-2.0, 1.4k★; ARM32/ARM64/RISCV32/RISCV64; QEMU; 32 МБ ОЗУ заявлено); BlueOS 2 (окт 2024) — «first fully Rust-written OS»; серийно на Vivo Watch и ИИ-терминалах, НЕ на телефонах и не для чужого железа. [10][46][47]
+* **Rust-ядра совместимости с Linux:** Asterinas (MPL-2.0; framekernel, 240+ syscalls, 0.19.0: DRM, **AArch64 как 4-я архитектура**, Asterinas NixOS; x86_64 VM-only — на реальном железе не запускать), Maestro (AGPL), Kerla (MIT/Apache-2.0) — все без драйверной базы телефона. [3][45]
+* **Xous** (betrusted.io) — чистый Rust микроядро (message-passing), работает на Baochip-1x (400 МГц Vexriscv, 2 МиБ SRAM, открытый кремний) — самый «минимальный» живой Rust-ОС-пример; телефонные SoC/модем — нет. Apache-2.0, ~1k★. [50]
+* **Tock** — embedded RTOS для Cortex-M/RISC-V, от 64 КБ ОЗУ (RP2040, микросхемы, сенсоры); MIT/Apache; 6.5k★. Не телефон. [51]
+* **Hubris** (Oxide) — микроядро deeply-embedded (платежи/манагеры); MPL-2.0; 3.6k★; в продакшене Oxide. Не телефон. [52]
+* **Theseus** — исследовательская SAS/SPL ОС на safe Rust; MIT; заглохла с 2024-09. Не телефон. [53]
+* Полный разбор «Rust-ОС vs слабый телефон» — [RUST-OSES.md](RUST-OSES.md).
 
-**Урок:** «ОС на чистом Rust» для телефона существует только как исследовательский скелет. Главная проблема не ядро и не язык, а **драйверы и HAL**: GPU, модем, камера, сенсоры, аудио, PMIC. Поэтому DoxaizOS не изобретает ядро, а берёт готовое (Linux + AOSP/LineageOS) и пишет весь новый слой на Rust.
+**Урок:** «ОС на чистом Rust» для телефона существует только как исследовательский скелет либо как серийная ОС с жёсткой привязкой к железу производителя (BlueOS — только устройства Vivo). Главная проблема не ядро и не язык, а **драйверы и HAL**: GPU, модем, камера, сенсоры, аудио, PMIC. Поэтому DoxaizOS не изобретает ядро, а берёт готовое (Linux + AOSP/LineageOS) и пишет весь новый слой на Rust.
 
 ### 2.2. Rust внутри Android и Linux — это больше не эксперимент
 
@@ -64,6 +69,7 @@
 
 Источники по лёгким сборкам и Android Go: [12][13][14][15][16][19][20]
 Источники по GSI/DSU («прошивка на любой телефон»): [34][35][36][37][38][39][40][41][42][43][44]
+Источники по Rust-ОС (в т.ч. «на самый слабый телефон»): [45][46][47][48][49][50][51][52][53][54] — разбор в [RUST-OSES.md](RUST-OSES.md)
 
 **Android Go — ключевое доказательство**, что 2 ГБ достаточно, если убрать всё лишнее: требования Android 13 Go — 2 ГБ ОЗУ и 16 ГБ хранилища; Android 11 требовал 1 ГБ; Android 8.1 — 512 МБ. Оптимизации: `ro.config.low_ram`, лимиты Dalvik, hibernate неиспользуемых приложений, Lite-приложения. [13][14][15]
 
@@ -157,6 +163,16 @@
 42. AndyYan GSI builds (aosp-pure-userdebug / lineage-*-gsi_arm64, Android 17) — https://sourceforge.net/projects/andyyan-gsi/files/aosp-pure-userdebug/
 43. AOSP — Generic system images (официально: GSI-таргеты, `lunch gsi_arm64-userdebug`, out/target/product/generic_arm64/system.img) — https://source.android.com/docs/core/tests/vts/gsi
 44. TrebleDroid — treble_experimentations (phhusson-патчи, vndklite для Go-устройств, GSI README) — https://github.com/TrebleDroid/treble_experimentations
+45. Asterinas (MPL-2.0): 0.19.0 (2026-10) — DRM, AArch64 (4-я архитектура), Asterinas NixOS; framekernel, 240+ syscalls; x86_64 VM-only — https://github.com/asterinas/asterinas ; https://asterinas.github.io/book/
+46. BlueKernel (Vivo, Apache-2.0), открыт 2025-07-31: ARM32/ARM64/RISCV32/RISCV64, QEMU; минимальная конфигурация ядра — 13 КБ ОЗУ; POSIX-совместим, rust-std, слой абстракции драйверов на Rust; системные фреймворки BlueOS тоже на Rust — https://github.com/vivoblueos/kernel ; https://opennet.ru/63649-blueos
+47. BlueOS: BlueOS 2 (2024-10) «first fully Rust-written OS»; серийно на Vivo Watch 3 / ИИ-терминалах / IoT; 32 МБ ОЗУ заявлено — https://en.wikipedia.org/wiki/BlueOS
+48. moss-kernel (HexagonalSun, MIT): 109 syscalls, SMP/EEVDF, Arch aarch64, Pi4/Jetson Nano/Kria/i.MX8 — https://github.com/hexagonal-sun/moss-kernel
+49. Redox 0.9.0: x86_64 (golden), i686, aarch64 экспериментально (RPi 3B+); livedisk.iso — https://os.watch/redox/0.9.0
+50. Xous + Baochip-1x (400 МГц Vexriscv, 2 МиБ SRAM) — 39c3: https://media.ccc.de/v/39c3-xous-a-pure-rust-rethink-of-the-embedded-operating-system
+51. Tock OS (MIT/Apache-2.0): Cortex-M/RISC-V, ≥ 64 КБ ОЗУ — https://github.com/tock/tock
+52. Hubris (Oxide, MPL-2.0) — https://github.com/oxidecomputer/hubris ; RustyHermit → hermit-os/hermit-rs (unikernel, Apache-2.0) — https://github.com/hermit-os/hermit-rs
+53. Theseus (MIT, заглох 2024-09) + каталог Rust-ОС — https://github.com/theseus-os/Theseus ; https://github.com/flosse/rust-os-comparison
+54. Afflictio (GPL-3.0): Linux-ядро + Rust userspace, скелет — https://github.com/mel0k1/Afflictio
 
 1. Afflictio — Mobile OS in Rust on the moss kernel — https://github.com/mel0k1/Afflictio
 2. moss — Rust Linux-compatible kernel (MIT) — https://github.com/hardliner66/moss

@@ -61,7 +61,7 @@ cargo run -p doxaiz-metrics -- pss pss.txt              # PSS лаунчера �
 ## Состав репозитория
 
 ```
-docs/          документация: RESEARCH, ARCHITECTURE, BUILD, PERFORMANCE, SECURITY, LAUNCHER, ROADMAP, DEVICES, OTA, GSI
+docs/          документация: RESEARCH, ARCHITECTURE, BUILD, PERFORMANCE, SECURITY, LAUNCHER, ROADMAP, DEVICES, OTA, GSI, RUST-OSES
 manifest/      локальный манифест для дерева AOSP/LineageOS (исключения automotive/TV)
 overlay/       вендорский overlay vendor/doxaiz: low-RAM свойства, prebuilt лаунчера, подпись, продукт doxaiz_gsi (GSI)
 core/          Rust workspace: doxaiz-perf (low-RAM профиль), doxaiz-xtask (проверки),

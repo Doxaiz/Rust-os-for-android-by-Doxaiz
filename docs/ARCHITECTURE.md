@@ -97,6 +97,7 @@ DoxaizOS/
 │   ├── DEVICES.md               # как выбрать телефон под DoxaizOS
 │   ├── OTA.md                   # релизы и OTA-обновления (подпись, откат)
 │   ├── GSI.md                   # «на любой телефон»: GSI, DSU, прошивка
+│   ├── RUST-OSES.md             # готовые Rust-ОС: что тянет слабый телефон (и что нет)
 │   └── ROADMAP.md               # этапы и критерии готовности
 ├── manifest/doxaiz.xml          # локальный манифест (исключения из AOSP)
 ├── overlay/vendor/doxaiz/       # вендорский overlay: продукты (doxaiz_base для
