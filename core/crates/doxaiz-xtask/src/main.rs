@@ -36,6 +36,7 @@ const REQUIRED: &[(&str, &str)] = &[
     ("docs/PERFORMANCE.md", "zram"),
     ("docs/SECURITY.md", "SELinux"),
     ("docs/ROADMAP.md", "Cuttlefish"),
+    ("docs/STATUS.md", "Спроектировано и написано"),
     ("docs/RUST-OSES.md", "Tock"),
     ("docs/RUST-OSES.md", "BlueOS"),
     ("docs/GSI.md", "Project Treble"),

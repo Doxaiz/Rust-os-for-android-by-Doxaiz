@@ -35,7 +35,7 @@ Android-база (LineageOS/AOSP slim) · low-RAM профиль в духе And
 2. **Поставить на ЛЮБОЙ телефон** (Project Treble, Android 8+): [docs/GSI.md](docs/GSI.md) — GSI-сборка `lunch doxaiz_arm64-userdebug`, прошивка через fastboot, безопасный тест через DSU.
 3. **Что внутри и почему так**: [docs/RESEARCH.md](docs/RESEARCH.md) (исследование, источники) и [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 4. **Лаунчер как HOME**: [docs/LAUNCHER.md](docs/LAUNCHER.md).
-5. **Список этапов работ**: [docs/ROADMAP.md](docs/ROADMAP.md).
+5. **Список этапов работ**: [docs/ROADMAP.md](docs/ROADMAP.md). Честный статус готовности: [docs/STATUS.md](docs/STATUS.md).
 
 Одной командой инструментарий сборки (проверки репозитория):
 
@@ -61,7 +61,7 @@ cargo run -p doxaiz-metrics -- pss pss.txt              # PSS лаунчера �
 ## Состав репозитория
 
 ```
-docs/          документация: RESEARCH, ARCHITECTURE, BUILD, PERFORMANCE, SECURITY, LAUNCHER, ROADMAP, DEVICES, OTA, GSI, RUST-OSES
+docs/          документация: RESEARCH, ARCHITECTURE, BUILD, PERFORMANCE, SECURITY, LAUNCHER, ROADMAP, DEVICES, OTA, GSI, RUST-OSES, STATUS
 manifest/      локальный манифест для дерева AOSP/LineageOS (исключения automotive/TV)
 overlay/       вендорский overlay vendor/doxaiz: low-RAM свойства, prebuilt лаунчера, подпись, продукт doxaiz_gsi (GSI)
 core/          Rust workspace: doxaiz-perf (low-RAM профиль), doxaiz-xtask (проверки),
