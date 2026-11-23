@@ -82,3 +82,30 @@ jobs:
               ET.parse(f)
               print("ok", f)
           EOF
+
+  launcher-prebuilt:
+    name: Лаунчер APK из релиза (информативно)
+    runs-on: ubuntu-latest
+    # Внешняя зависимость вне нашего контроля: доступность release-assets.githubusercontent.com
+    # и наличие APK в последнем релизе. Падаем мягко, но печатаем всё в лог.
+    continue-on-error: true
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Скачать последний APK Doxaiz Launcher и проверить его
+        run: |
+          gh release download --repo Doxaiz/Doxaiz-android-launcher- \
+            --pattern '*.apk' --dir /tmp/apk --clobber
+          python3 - <<'EOF'
+          import glob, os, zipfile
+          apks = glob.glob('/tmp/apk/*.apk')
+          assert apks, 'в последнем релизе нет *.apk'
+          apk = apks[0]
+          with zipfile.ZipFile(apk) as z:
+              names = z.namelist()
+              assert 'AndroidManifest.xml' in names, 'нет AndroidManifest.xml'
+              assert any(n.endswith('.dex') for n in names), 'нет classes*.dex'
+          print('APK валиден:', os.path.basename(apk),
+                f'({os.path.getsize(apk)/1e6:.1f} МБ)')
+          EOF
