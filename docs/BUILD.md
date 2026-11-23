@@ -12,15 +12,36 @@ DoxaizOS — это «slim-профиль» поверх LineageOS/AOSP: сво�
 scripts/preflight.sh ~/doxaiz-os
 ```
 
-Он проверит Linux/arch, ОЗУ (≥ 12 ГБ, иначе FAIL), свободное место (≥ 120 ГБ — warn, ≥ 250 ГБ — ok), ядра, наличие repo/git/java/python3 и /dev/kvm (для Cuttlefish). Либо вручную:
+Требования по официальным данным LineageOS (чем новее ветка, тем тяжелее сборка, [wiki](https://wiki.lineageos.org/emulator)):
+
+| Ветка | ОЗУ (рекомендация) | Диск |
+|---|---|---|
+| lineage-17.1 (Android 10) | 16 ГБ | 200 ГБ |
+| lineage-18.1 (Android 11) | 32 ГБ+ | 300 ГБ |
+| lineage-21+ (Android 14+), вкл. lineage-24.0/Android 17 | **64 ГБ** | **400 ГБ** |
+
+На меньшей памяти собирается дольше (вплоть до суток) — помогает zram/swap на хосте и `ccache` (ниже). Практичный минимум: 32 ГБ ОЗУ и 300+ ГБ SSD; `preflight.sh` предупреждает мягче: FAIL < 12 ГБ/быстрого диска, в остальном warn.
+
+Либо вручную:
 
 ```bash
-nproc                       # ≥ 8 желательно
-free -g                     # ≥ 12–16 ГБ
-df -h .                     # ≥ 250 ГБ свободно
+nproc                       # ≥ 8 (лучше 16)
+free -g                     # ≥ 16 ГБ (лучше 32–64)
+df -h .                     # ≥ 300 ГБ свободно (лучше 400)
 python3 --version           # 3.8+
 git --version
 ```
+
+### ccache — вторая сборка в разы быстрее
+
+```bash
+sudo apt install -y ccache
+export USE_CCACHE=1
+ccache -M 50G          # дерево LineageOS огромно; 25–100 ГБ — норма
+ccache -z              # статистика до сборки
+```
+
+По данным wiki, `ccache` на 25–50 ГБ сокращает часы повторной сборки до десятков минут.
 
 ## 1. Пакеты системы (Ubuntu 22.04+/Debian 12)
 

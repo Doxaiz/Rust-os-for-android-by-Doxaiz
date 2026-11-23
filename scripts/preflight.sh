@@ -30,19 +30,21 @@ case "$arch" in
 esac
 
 mem_gb=$(awk '/MemTotal/ {printf "%d", $2/1024/1024}' /proc/meminfo)
-if [ "$mem_gb" -ge 24 ]; then note "ОЗУ: ${mem_gb} ГБ"
-elif [ "$mem_gb" -ge 12 ]; then warn "ОЗУ: ${mem_gb} ГБ — минималка; добавьте zram/swap на хосте"
+if [ "$mem_gb" -ge 32 ]; then note "ОЗУ: ${mem_gb} ГБ (хорошо; lineage-24.0 по wiki — 64 ГБ)"
+elif [ "$mem_gb" -ge 12 ]; then warn "ОЗУ: ${mem_gb} ГБ — минимум; на lineage-24.0 по wiki нужно 64 ГБ, помогут zram и ccache (docs/BUILD.md §0)"
 else fail "ОЗУ: ${mem_gb} ГБ — слишком мало для сборки AOSP (<12 ГБ)"; fi
 
 df_gb=$(df -BG --output=avail "$TARGET" 2>/dev/null | tail -1 | tr -dc '0-9' || echo 0)
-if [ "$df_gb" -ge 250 ]; then note "диск: свободно ~${df_gb} ГБ"
-elif [ "$df_gb" -ge 120 ]; then warn "диск: ~${df_gb} ГБ — впритык для полной синхронизации+сборки"
-else fail "диск: ~${df_gb} ГБ — не хватит даже для repo sync (<120 ГБ)"; fi
+if [ "$df_gb" -ge 400 ]; then note "диск: свободно ~${df_gb} ГБ (рекомендация lineage-24.0)"
+elif [ "$df_gb" -ge 200 ]; then warn "диск: ~${df_gb} ГБ — для lineage-24.0 по wiki нужно 400 ГБ"
+else fail "диск: ~${df_gb} ГБ — не хватит даже для repo sync (<200 ГБ)"; fi
 
 cores="$(nproc 2>/dev/null || echo 1)"
-if [ "$cores" -ge 8 ]; then note "ядра: $cores"
-elif [ "$cores" -ge 4 ]; then warn "ядра: $cores — сборка будет долгой"
-else warn "ядра: $cores — соберётся, но медленно"; fi
+if [ "$cores" -ge 16 ]; then note "ядра: $cores"
+elif [ "$cores" -ge 8 ]; then warn "ядра: $cores — соберётся, но медленно (wiki: чем больше, тем лучше); включите ccache"
+else warn "ядра: $cores — соберётся очень медленно"; fi
+if command -v ccache >/dev/null 2>&1; then note "ccache: $(ccache -s 2>/dev/null | head -n1 || command -v ccache)"
+else warn "ccache не найден — вторая сборка будет долгой; sudo apt install ccache && ccache -M 50G (docs/BUILD.md §0)"; fi
 
 for cmd in git python3 curl java; do
     if command -v "$cmd" >/dev/null 2>&1; then note "$cmd: $(command -v "$cmd")"

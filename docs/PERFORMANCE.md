@@ -7,11 +7,12 @@
 `overlay/vendor/doxaiz/products/doxaiz_base.mk`:
 
 ```
-ro.config.low_ram=true          # low-RAM режим фреймворка
+ro.config.low_ram=true          # low-RAM режим фреймворка и lmkd
 ro.setupwizard.mode=OPTIONAL    # без Google-мастера настройки
 dalvik.vm.heapstartsize=8m
 dalvik.vm.heapgrowthlimit=96m
 dalvik.vm.heapsize=256m
+# + блок ro.lmk.* с официальными low-RAM дефолтами AOSP (см. §3)
 ro.doxaiz.version=0.1.0
 ro.doxaiz.profile=lowram-2gb
 ```
@@ -48,17 +49,29 @@ adb shell cat /proc/swaps
 
 ## 3. lmkd (lowmemorykiller daemon) — когда и как выгружать приложения
 
-Android больше не использует старый собственный lmk-драйвер в общем случае; вместо него — `lmkd` в юзерспейсе, который читает PSI (Pressure Stall Information) и убивает приложения по приоритетам.
+Android с ядра 4.12 не использует in-kernel LMK driver; вместо него — `lmkd` в юзерспейсе. С Android 10 он работает в режиме **PSI** (Pressure Stall Information): ядро компилируется с `CONFIG_PSI=y`, а low-RAM требует ещё **memory cgroups** и **PIDFD** ([исходники lmkd](https://android.googlesource.com/platform/system/memory/lmkd/+/master/README.md)).
+
+`ro.config.low_ram=true` (наш случай) переключает lmkd на философию «система должна терпеть более высокое давление памяти как нормальный режим» ([source.android.com, lmkd](https://source.android.com/docs/core/perf/lmkd)). Точные дефолты low-RAM vs high-performance (таблица «Configure lmkd in Android 11» официального документа) **уже зафиксированы в overlay** `vendor/doxaiz/products/doxaiz_base.mk`:
+
+| Свойство | High perf (по умолчанию) | Low RAM (DoxaizOS) | Смысл |
+|---|---|---|---|
+| `ro.lmk.psi_partial_stall_ms` | 70 | **200** | порог partial PSI для уведомлений о давлении |
+| `ro.lmk.psi_complete_stall_ms` | 700 | **700** | порог полного простоя для критического уведомления |
+| `ro.lmk.thrashing_limit` | 100 | **30** | % workingset refaults к pagecache → «thrashing» |
+| `ro.lmk.thrashing_limit_decay` | 10 | **50** | %, на сколько опускается порог thrashing после kill |
+| `ro.lmk.swap_free_low_percentage` | 20 | **10** | % свободного swap, ниже которого swap «голоден» |
+| `ro.lmk.swap_util_max` | 100 | **100** | % занятого swap; 100 = проверка выключена |
+| `ro.lmk.low` / `medium` / `critical` | 1001 / 800 / 0 | **1001 / 800 / 0** | границы oom_adj для kill-ов |
+| `ro.lmk.use_psi` | true | **true** | PSI вместо vmpressure |
+| `ro.lmk.kill_heaviest_task` | false | не задан | убийца берёт самый жирный подходящий процесс (включите при замере, если kill-ы «не те») |
+| `ro.lmk.debug` | false | **false** | логи в logcat (включать только при отладке) |
 
 Практические шаги:
 
-1. Убедитесь, что PSI включён: `adb shell cat /proc/pressure/memory` — должно быть не пусто.
-2. Параметры lmkd задаются свойствами `ro.lmk.*` (состав и значения различаются между ветками Android — **не копируйте чужие цифры вслепую**). В вашей ветке смотрите:
-   ```bash
-   grep -rn "ro.lmk" system/core/lmkd* system/memory* frameworks/base/... 2>/dev/null | head
-   # и документация: cs.android.com/android/platform/superproject — поиск «lmkd»
-   ```
-3. Смысл параметров: ниже пороги «swap свободен» → lmkd раньше убивает фоновые приложения, сохраняя передний план живым. На low-RAM устройствах это правильно: лучше перезапуск фона, чем убийство вами открытого приложения.
+1. Убедитесь, что PSI жив: `adb shell cat /proc/pressure/memory` — не пусто.
+2. Убедитесь, что low-RAM виден фреймворком: `adb shell getprop ro.config.low_ram` → `true`; приложения увидят `ActivityManager.isLowRamDevice() == true` (и система — `isLowRamDeviceStatic()`), потому что фреймворк читает именно `ro.config.low_ram`.
+3. Тюнинг — только с замером: `ro.lmk.psi_partial_stall_ms` и `thrashing_limit` — первые кандидаты. Не копируйте цифры из «твиков» с XDA (напр., `kill_heaviest_task=true` без замера).
+4. Проверка kill-поведения: `adb shell dumpsys activity lru` — видно процессы и их adj-закомы; `logcat -b all | grep lmkd` — кого lmkd убивал.
 
 ## 4. F2FS и файловая система
 

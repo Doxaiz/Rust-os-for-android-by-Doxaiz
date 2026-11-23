@@ -6,6 +6,11 @@
 * `docs/OTA.md` — релизный пайплайн: target-files → подпись → `ota_from_target_files` → sideload/A-B → откат, чеклист релиза, подводные камни.
 * `scripts/ota.sh` — обёртка над `ota_from_target_files` (полная и дельта-сборки); запускается внутри дерева AOSP.
 * `doxaiz-metrics::probe` — парсеры `am start -W` (TotalTime ≤ 400 мс), `dumpsys gfxinfo` (janky ≤ 5 %, p90 ≤ 16 мс), `dumpsys meminfo <pkg>` (TOTAL PSS ≤ 60 МБ). CLI: `doxaiz-check coldstart|jank|pss <файл>`.
+* overlay `doxaiz_base.mk`: явный блок `ro.lmk.*` с **официальными low-RAM дефолтами AOSP** (документация source.android.com/docs/core/perf/lmkd; psi_partial_stall_ms=200, thrashing_limit=30, thrashing_limit_decay=50, swap_free_low_percentage=10).
+* `docs/RESEARCH.md`: 10 новых источников (lmkd-документация AOSP, lmkd README, rsbinder, LineageOS wiki: требования по ОЗУ/диску lineage-21+ → 64 ГБ / 400 ГБ, синтаксис `<remove-project>`, Project Svelte); новый раздел «2.2а Официальная механика low-RAM в Android».
+* `docs/BUILD.md`: таблица требований по версиям LineageOS + раздел ccache (25–50 ГБ, вторая сборка в разы быстрее).
+* `docs/PERFORMANCE.md` §3: полная таблица low-RAM дефолтов lmkd с источниками и признаки работы PSI/low-RAM на устройстве.
+* `scripts/preflight.sh`: пороги по официальным требованиям LineageOS (ОЗУ ≥ 32 ГБ ok / 64 wiki, диск ≥ 400 ГБ), проверка ccache.
 
 ## [0.2.0] — 2026-11-23
 
@@ -19,7 +24,7 @@
 ### Changed
 * `doxaiz-perf`: граничные тесты (2049/3073 МиБ, zram 512 МБ на 1 ГБ устройстве).
 * `doxaiz-xtask verify`: проверки метрик, DEVICES, CHANGELOG, preflight, ota.sh.
-* `docs/ARCHITECTURE.md`, `README.md`, `docs/ROADMAP.md` — состав репозитория дополнен новыми компонентами.
+* `docs/ROADMAP.md`, `docs/RESEARCH.md` — этап 6 переписан: `doxaiz-sys` на rsbinder (pure-Rust Binder, Android 10–17; альтернативы libbinder_ndk / in-tree Rust); состав репозитория дополнен новыми компонентами.
 
 ## [0.1.0] — 2026-11-23
 

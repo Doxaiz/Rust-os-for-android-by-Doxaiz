@@ -9,7 +9,7 @@
 | 1 | **База — Android (AOSP/LineageOS), сборка «slim».** Не «с нуля». | Реальному телефону нужны драйверы (GPU, модем, камера, Wi-Fi, PMIC): их написание с нуля — годы работы и отдельная ветка на каждую модель. Android даёт их готовыми, и это единственный путь к «поставить на телефон с 2 ГБ ОЗУ» в разумный срок. [12][19] |
 | 2 | **Рабочий стол — Doxaiz Launcher** ([репозиторий](https://github.com/Doxaiz/Doxaiz-android-launcher-)), встроенный в образ как системное приложение с ролью HOME. | Готовый, проверенный в CI на эмуляторе Android 14 рабочий стол на Kotlin; подходит 1:1. [21] |
 | 3 | **Rust — для всех новых компонентов DoxaizOS** (здесь и в дереве AOSP). | Rust официально поддержан в AOSP с 2021; с 2026 новые security-critical компоненты Android пишутся на Rust по умолчанию; Rust for Linux принят в mainline и с декабря 2025 больше не считается «экспериментом». [4][5][6][7] |
-| 4 | **Лёгкость берём по модели Android Go:** `ro.config.low_ram`, маленькие лимиты кучи Dalvik, ZRAM 50 %, lmkd, отказ от Google-служб, удаление automotive/TV-пакетов. | Android Go — официальная «облегчённая» Android-модель ровно под класс устройств ≤ 2 ГБ / 16 ГБ; на практике ~вдвое компактнее полного Android. [13][14][15] |
+| 4 | **Лёгкость берём по модели Android Go:** `ro.config.low_ram`, маленькие лимиты кучи Dalvik, ZRAM 50 %, lmkd (с официальными low-RAM дефолтами), отказ от Google-служб, удаление automotive/TV-пакетов. | Android Go — официальная «облегчённая» Android-модель ровно под класс устройств ≤ 2 ГБ / 16 ГБ; на практике ~вдвое компактнее полного Android. Дефолты lmkd для low-RAM задокументированы AOSP. [13][14][15][24][25] |
 | 5 | **ОС с нуля на чистом Rust (как Afflictio/moss) — отслеживаем, но не выбираем для 2 ГБ-телефона сегодня.** | Такие проекты уже грузятся в QEMU и пишутся на Rust, но до реальных драйверов и пригодности для 2 ГБ-железа — долгая дистанция; сам проект Afflictio честно маркирует себя «загружаемым скелетом». [1][2][3] |
 | 6 | **Проверка — Cuttlefish (виртуальный телефон AOSP) + CI.** Реальный билд — на ПК сборщика, не в песочнице. | Cuttlefish — официальный способ AOSP прогнать образ в VM и через adb; KVM есть на GitHub Actions/обычном ПК. [17][18] |
 
@@ -38,8 +38,16 @@
 * По обзорным оценкам, к 2023 в AOSP больше миллиона строк Rust. [18]
 * Android Common Kernel 6.12 — первое ядро с включённой поддержкой Rust и первым production Rust-драйвером (Android); Google ожидает миллионы устройств на Rust for Linux. [7]
 * Декабрь 2025, Linux Kernel Developers Summit / LPC: Rust в ядре официально перестал быть «экспериментом»; Binder-драйвер на Rust принят в upstream; Rust-драйверы: ASIX PHY, Tyr GPU, QR panic и др. [4][5]
+* Для юзерспейс-сервисов на Rust готов **rsbinder** (pure Rust Binder/AIDL, Android 10–17, wire-compatible с libbinder; transports: kernel /dev/binder и RPC-over-socket). Pre-1.0, зрелость оценивать перед продакшном — используем на Этапе 6 ([ROADMAP.md](ROADMAP.md)). [27][28]
 
 **Урок:** мы не «тянем Rust в консервативное ядро», а следуем официальному курсу Google и mainline.
+
+### 2.2а. Официальная механика low-RAM в Android (базис всех решений DoxaizOS)
+
+* `ro.config.low_ram=true` — главный переключатель: фреймворк читает его в `ActivityManager.isLowRamDeviceStatic()`; приложения видят `ActivityManager.isLowRamDevice()` и отключают тяжёлые фичи сами (механика тянется с «Project Svelte», Android 4.4). [30][33]
+* **lmkd** (юзерспейс, с ядра 4.12; PSI с Android 10): для low-RAM устройств AOSP документирует свою колонку дефолтов — `psi_partial_stall_ms=200` (vs 70), `thrashing_limit=30` (vs 100), `thrashing_limit_decay=50` (vs 10), `swap_free_low_percentage=10` (vs 20), `psi_complete_stall_ms=700`. Требуются `CONFIG_PSI=y`, memory cgroups и PIDFD; `ro.config.low_ram=true` также переключает kill-стратегию lmkd («терпеть давление памяти как норму»). [24][25]
+* Сборка low-RAM образа — обычные `PRODUCT_PROPERTY_OVERRIDES` в device makefile; примеры продакшн-конфигов сообщества (Dalvik heap 8/64/128, скрытие multiuser, отключение blur) показывают типовой порядок величин. [30][31]
+* Всё это применяется в overlay DoxaizOS явно: см. `overlay/vendor/doxaiz/products/doxaiz_base.mk` (блок lmkd) и [PERFORMANCE.md](PERFORMANCE.md) §1/§3.
 
 ### 2.3. Лёгкие Android-сборки и альтернативы
 
@@ -59,7 +67,7 @@
 
 **LineageOS** выбран как база: открытый исходный код (зеркало AOSP + LineageOS на GitHub — можно собирать с `github.com/LineageOS/android`), официальные недельные сборки, регулярные патчи безопасности, поддержка 200+ устройств, минимум предустановок, легко «отрезается» лишнее. [19][20]
 
-Проверено по официальному манифесту: ветка `lineage-24.0` фиксирует AOSP на `refs/tags/android-17.0.0_r1` (Android 17); `device/google/cuttlefish` входит в манифест — можно собирать виртуальный телефон и гонять adb в VM (KVM). [19]
+Проверено по официальному манифесту: ветка `lineage-24.0` фиксирует AOSP на `refs/tags/android-17.0.0_r1` (Android 17); `device/google/cuttlefish` входит в манифест — можно собирать виртуальный телефон и гонять adb в VM (KVM). [19] Официальная wiki сборки: для ветки ≥ lineage-21 рекомендуется 64 ГБ ОЗУ и 400 ГБ диска (lineage-21+ / Android 14+); для повторных сборок — `ccache` на 25–50 ГБ. [29] Исключения из синхронизации оформляются локальным манифестом тегом `<remove-project name="…"/>` — см. [manifest/doxaiz.xml](../manifest/doxaiz.xml). [32]
 
 ---
 
@@ -114,6 +122,17 @@
 ---
 
 ## 6. Источники
+
+24. Low memory killer daemon (официальная документация AOSP: PSI, конфигурация lmkd в Android 10/11, колонки дефолтов high-perf vs low-RAM) — https://source.android.com/docs/core/perf/lmkd
+25. lmkd README (Googlesource, master; колонки дефолтов low-RAM: psi_partial_stall 200, swap_free_low 10, thrashing 30/50) — https://android.googlesource.com/platform/system/memory/lmkd/+/master/README.md
+26. lmkd README (зеркало LineageOS, валидация на живой ROM) — https://github.com/LineageOS/android_system_memory_lmkd/blob/lineage-20.0/README.md
+27. rsbinder (crates.io): pure-Rust Binder/AIDL, Android 10–17 — https://crates.io/crates/rsbinder ; обзор: https://lib.rs/crates/rsbinder
+28. rsbinder — репозиторий, статусы совместимости (API 29–37, RPC v1/v2) — https://github.com/qwq233/rsbinder
+29. LineageOS Wiki — Building for Emulator/AVD (требования по ОЗУ/диску по веткам: lineage-21+ → 64 ГБ / 400 ГБ; ccache 25–100 ГБ) — https://wiki.lineageos.org/emulator
+30. Low RAM Configuration (зеркало официального документа Android 4.4: `PRODUCT_PROPERTY_OVERRIDES += ro.config.low_ram=true`, `ActivityManager.isLowRamDevice()`) — https://riptutorial.com/android/example/28282/low-ram-configuration
+31. LowRAM-Flag-Plus (сообщество; пример продакшн-конфига low-RAM: heap 8/64/128, disable blur/multiuser) — https://github.com/JosFlix7/LowRAM-Flag-Plus/blob/Android-Go-Tweaks/system.prop
+32. Локальные манифесты: `<remove-project name="…"/>` (пример: Galaxy-MSM8916/local_manifests) — https://github.com/Galaxy-MSM8916/local_manifests/blob/master/lineage-14.1.xml
+33. Tuning Android for low RAM (слайды Google, 2014; «Project Svelte» — историческая основа low_ram и isLowRamDevice) — https://2net.co.uk/slides/android-lowmemory-abs-2014.pdf
 
 1. Afflictio — Mobile OS in Rust on the moss kernel — https://github.com/mel0k1/Afflictio
 2. moss — Rust Linux-compatible kernel (MIT) — https://github.com/hardliner66/moss
