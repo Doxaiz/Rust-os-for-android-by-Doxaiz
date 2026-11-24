@@ -3,6 +3,7 @@
 ## [Unreleased] — 2026-11-23
 
 ### Added
+* Offline regression-тесты загрузчика APK: 20 сценариев (gh и API), включая неверный хеш, повреждённый ZIP/CRC, отсутствие dex, ошибки загрузки, сохранность старого APK и очистку. Запуск unittest включён в обязательный Scripts job CI; эти тесты не подтверждают работоспособность APK на Android.
 * `docs/OTA.md` — релизный пайплайн: target-files → подпись → `ota_from_target_files` → sideload/A-B → откат, чеклист релиза, подводные камни.
 * `scripts/ota.sh` — обёртка над `ota_from_target_files` (полная и дельта-сборки); запускается внутри дерева AOSP.
 * `doxaiz-metrics::probe` — парсеры `am start -W` (TotalTime ≤ 400 мс), `dumpsys gfxinfo` (janky ≤ 5 %, p90 ≤ 16 мс), `dumpsys meminfo <pkg>` (TOTAL PSS ≤ 60 МБ). CLI: `doxaiz-check coldstart|jank|pss <файл>`.

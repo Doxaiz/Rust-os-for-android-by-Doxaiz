@@ -20,8 +20,9 @@
 
 ```bash
 # Быстрая локальная проверка (не нужны AOSP и железо):
-cd core && cargo test --workspace && cargo run -p doxaiz-xtask -- verify
+(cd core && cargo test --workspace && cargo run -p doxaiz-xtask -- verify)
 python3 scripts/check-docs-links.py
+python3 -m unittest discover -s scripts/tests -v
 
 # Полная сборка прошивки — docs/BUILD.md (ПК сборщика).
 ```

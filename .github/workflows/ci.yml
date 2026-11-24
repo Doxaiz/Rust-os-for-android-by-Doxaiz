@@ -73,6 +73,9 @@ jobs:
       - name: python syntax
         run: python3 -m py_compile scripts/check-docs-links.py
 
+      - name: Launcher downloader regression tests (offline)
+        run: python3 -m unittest discover -s scripts/tests -v
+
       - name: XML валиден
         run: |
           python3 - <<'EOF'

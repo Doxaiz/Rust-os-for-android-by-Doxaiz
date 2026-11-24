@@ -26,7 +26,7 @@
 | Rust workspace `doxaiz-metrics` | ✅ | 8 тестов; парсеры meminfo/am-start/gfxinfo/meminfo-pkg; бюджеты машинно-проверяемы | проверка на устройстве (Этапы 3–5) |
 | doxaiz-xtask `verify` | ✅ | 32/32 маркера в CI | — |
 | CI (GitHub Actions, 4 джобы) | ✅ | Rust test+verify, Scripts (bash -n + XML), Docs (links), Launcher APK (информативно) | — |
-| Скачивание релизного APK лаунчера + sha256 | 📄 | релиз v1.0.0 существует, ассет `doxaiz-1.0.0.apk` (~854 КиБ) + `apk-sha256.txt`; хардфейл при несовпадении | e2e-прогон на машине с сетью (в песочнице запрещён TLS к release-assets) |
+| Скачивание релизного APK лаунчера + sha256 | 📄 | 20 offline-сценариев (`scripts/tests/test_fetch_launcher.py`): gh/API, закрепление тега, хеш, ZIP/CRC, ошибки загрузки, сохранность prebuilt и очистка; отсутствие checksum по-прежнему допускается с предупреждением | e2e-прогон на машине с сетью (в песочнице запрещён TLS к release-assets) |
 | Doxaiz Launcher как HOME в образе | 📄 | сверено с исходным кодом лаунчера (v1.0.0): applicationId, HOME-фильтры, без INTERNET, ~854 КиБ | сборка образа + `set-home-activity` на Cuttlefish (Этап 3) |
 | Cuttlefish-прогон | ❌ | — | `launch_cvd` + чеклист BUILD.md §9 (нужен ПК с KVM) |
 | GSI на реальном телефоне + DSU | ❌ | — | совместимый Treble-телефон с доступным DSU (не гарантируется для каждой модели); [GSI.md](GSI.md) §4–5 |
