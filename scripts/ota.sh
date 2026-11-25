@@ -20,32 +20,58 @@ FROM_ZIP="${3:-}"
 [ -f "$TARGET_FILES" ] || { echo "Ошибка: не найден $TARGET_FILES" >&2; exit 1; }
 [ -z "$FROM_ZIP" ] || [ -f "$FROM_ZIP" ] || { echo "Ошибка: не найден $FROM_ZIP" >&2; exit 1; }
 
-# Скрипт releasetools живёт внутри дерева сборки.
-OTA_TOOL="$(find "${ANDROID_BUILD_TOP:-$PWD}" -path '*releasetools/ota_from_target_files' -type f -perm -u+x 2>/dev/null | head -n 1 || true)"
-if [ -z "$OTA_TOOL" ]; then
-    OTA_TOOL="$(find "${ANDROID_BUILD_TOP:-$PWD}" -name 'ota_from_target_files' -type f 2>/dev/null | grep -v test | head -n 1 || true)"
+# Современные releasetools — собранные python_binary_host, не случайный .py.
+# Явный override полезен для otatools, распакованных вне дерева сборки.
+if [ -n "${DOXAIZ_OTA_TOOL:-}" ]; then
+    OTA_TOOL="$DOXAIZ_OTA_TOOL"
+elif [ -n "${ANDROID_HOST_OUT:-}" ]; then
+    OTA_TOOL="$ANDROID_HOST_OUT/bin/ota_from_target_files"
+else
+    OTA_TOOL="${ANDROID_BUILD_TOP:-$PWD}/out/host/linux-x86/bin/ota_from_target_files"
 fi
-[ -n "$OTA_TOOL" ] || {
-    echo "Ошибка: ota_from_target_files не найден в дереве сборки." >&2
-    echo "Скрипт запускается из корня дерева AOSP/LineageOS (ANDROID_BUILD_TOP или cwd)." >&2
-    echo "См. docs/OTA.md, раздел 2." >&2
+[ -f "$OTA_TOOL" ] && [ -x "$OTA_TOOL" ] || {
+    echo "Ошибка: не найден исполняемый host-инструмент: $OTA_TOOL" >&2
+    echo "В дереве сборки выполните m otatools или задайте DOXAIZ_OTA_TOOL." >&2
     exit 1
 }
 echo "releasetools: $OTA_TOOL"
 
+# Нельзя заменить один из исходных target-files (включая symlink-алиасы).
+python3 - "$TARGET_FILES" "$OUTPUT" "$FROM_ZIP" <<'PYCHECK'
+import pathlib, sys
+new, output, old = sys.argv[1:]
+output = pathlib.Path(output).resolve()
+for source in (new, old):
+    if source and pathlib.Path(source).resolve() == output:
+        raise SystemExit('Ошибка: выходной OTA совпадает с исходным target-files')
+PYCHECK
+
 mkdir -p "$(dirname "$OUTPUT")"
-
+tmpdir="$(mktemp -d "$(dirname "$OUTPUT")/.ota-build.XXXXXX")"
+trap 'rm -rf "$tmpdir"' EXIT
+staged="$tmpdir/update.zip"
+args=()
 if [ -n "$FROM_ZIP" ]; then
-    echo "=== Дельта-обновление: $FROM_ZIP -> $TARGET_FILES ==="
-    python3 "$OTA_TOOL" -i "$FROM_ZIP" "$TARGET_FILES" "$OUTPUT"
-else
-    echo "=== Полное обновление из $TARGET_FILES ==="
-    python3 "$OTA_TOOL" "$TARGET_FILES" "$OUTPUT"
+    args+=(-i "$FROM_ZIP")
 fi
+# Ключ без расширения (.pk8/.x509.pem). Секреты не выводим в лог.
+if [ -n "${DOXAIZ_OTA_KEY:-}" ]; then
+    args+=(-k "$DOXAIZ_OTA_KEY")
+fi
+"$OTA_TOOL" "${args[@]}" "$TARGET_FILES" "$staged"
 
-echo "=== Готово: $OUTPUT ($(du -h "$OUTPUT" | cut -f1)) ==="
-if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum "$OUTPUT"
-fi
-unzip -l "$OUTPUT" | head -15 || true
-echo "Публикация: docs/OTA.md, разделы 3–4 (sha256 укажите в релизных заметках)."
+# Контейнер и метаданные — не проверка подписи или совместимости с телефоном.
+python3 - "$staged" <<'PYOTA'
+import sys, zipfile
+with zipfile.ZipFile(sys.argv[1]) as archive:
+    if archive.testzip() is not None:
+        raise SystemExit('Ошибка: повреждённый OTA ZIP')
+    metadata = archive.read('META-INF/com/android/metadata').decode()
+    fields = dict(line.split('=', 1) for line in metadata.splitlines() if '=' in line)
+    if not fields.get('post-build') or not fields.get('post-timestamp'):
+        raise SystemExit('Ошибка: в OTA нет обязательных метаданных сборки')
+PYOTA
+mv -f "$staged" "$OUTPUT"
+echo "=== Готово: $OUTPUT ==="
+sha256sum "$OUTPUT"
+echo "Публикация: docs/OTA.md (проверка подписи и установка обязательны отдельно)."

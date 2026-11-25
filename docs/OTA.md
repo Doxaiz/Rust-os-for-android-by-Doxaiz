@@ -29,29 +29,27 @@ mka -j$(nproc) dist                    # dist = target-files + образы
 ### Подпись target-files
 
 ```bash
-python3 build/make/tools/releasetools/sign_target_files_apks \
-  --default_key_mappings \
-  --key_mapping platform=<keys>/platform \
-  --key_mapping shared=<keys>/shared \
-  --key_mapping media=<keys>/media \
-  --key_mapping networkstack=<keys>/networkstack \
-  --key_mapping sdk_sandbox=<keys>/sdk_sandbox \
-  --key_mapping nfc=<keys>/nfc \
+# Собираем host-инструменты из ТОЙ ЖЕ ветки, что и прошивка:
+m otatools
+"$ANDROID_HOST_OUT/bin/sign_target_files_apks" \
+  -o -d /secure/doxaiz-keys \
   <in>/lineage_<codename>-target_files-<tag>.zip \
   <out>/lineage_<codename>-target_files-<tag>-signed.zip
 ```
 
-(Путь `build/make/tools/releasetools/` — в дереве AOSP; в LineageOS те же скрипты, возможно через `build/soong` — сверяйте `find . -name sign_target_files_apks`.)
+`-d` обязательно принимает каталог ключей; `-o` заменяет OTA verification keys с учётом mapping. Это лишь базовый пример: дополнительные ключи APK/APEX, AVB и vendor-разделов определяются конкретной сборкой. Сверьте `META/apkcerts.txt`, `META/apexkeys.txt` и `META/misc_info.txt`; пример не доказывает, что все test keys заменены. Не вызывайте современный host-бинарник через `python3`.
 
 ### Генерация OTA zip
 
 ```bash
-scripts/ota.sh \
+DOXAIZ_OTA_KEY=/secure/doxaiz-keys/releasekey scripts/ota.sh \
   out/dist/lineage_<codename>-target_files-<tag>-signed.zip \
   <out>/doxaizos-<version>-<codename>.zip
 ```
 
-`scripts/ota.sh` — тонкая обёртка над `ota_from_target_files`: проверяет аргументы, вызывает генератор и печатает контрольную сумму.
+`scripts/ota.sh` запускает исполняемый host-инструмент напрямую. Выбор: `DOXAIZ_OTA_TOOL` → `$ANDROID_HOST_OUT/bin/ota_from_target_files` → `$ANDROID_BUILD_TOP/out/host/linux-x86/bin/ota_from_target_files` (или cwd вместо build top). Рекурсивного поиска по дереву нет.
+
+`DOXAIZ_OTA_KEY` — необязательный путь к ключу **без расширения**, передаваемый как `-k`. Без него действует выбор ключа самого releasetools; это не гарантия release-подписи. Для incremental OTA третий аргумент — прежний signed target-files ZIP (`-i`). Старый выходной файл сохраняется при ошибке генерации или проверки ZIP/метаданных; публикация — атомарная замена после успеха. Проверка контейнера **не проверяет подпись, ключи или совместимость OTA с устройством**.
 
 ### Проверка перед публикацией
 
@@ -106,3 +104,15 @@ sha256sum out/doxaizos-<version>-<codename>.zip
 * `user`-образ без release keys загрузится только с разблокированным загрузчиком — и это правильно: релизные ключи = контроль над подписью.
 * Дельта-OTA требует, чтобы сборка-«источник» была доступна сборщику: храните прошлые target-files в закрытом артефактном сторе.
 * Публичный GitHub Actions **не** подходит для AOSP-сборки (диск ~30 ГБ, время): сборка — на машине мейнтейнера, CI — только проверки.
+
+## Примеры реализации, изученные 2026-11-23
+
+Сравнение выполнено по исходникам через GitHub API. Для LineageOS использована доступная ветка `lineage-23.0`: это проверка механики releasetools, а не подтверждение сборки проекта на другой ветке.
+
+* [AOSP ota_from_target_files](https://github.com/aosp-mirror/platform_build/blob/main/tools/releasetools/ota_from_target_files.py): позиционные input/output, incremental `-i`, package key `-k`.
+* [LineageOS ota_from_target_files](https://github.com/LineageOS/android_build/blob/lineage-23.0/tools/releasetools/ota_from_target_files.py): CLI генератора для A/B и non-A/B.
+* [LineageOS Android.bp](https://github.com/LineageOS/android_build/blob/lineage-23.0/tools/releasetools/Android.bp): `ota_from_target_files` и `sign_target_files_apks` — `python_binary_host`.
+* [LineageOS sign_target_files_apks](https://github.com/LineageOS/android_build/blob/lineage-23.0/tools/releasetools/sign_target_files_apks.py): обязательный аргумент каталога у `-d`, OTA key replacement через `-o`, отдельные AVB/APEX-настройки.
+* [LineageOS bacon.mk](https://github.com/LineageOS/android_vendor_lineage/blob/lineage-23.0/build/tasks/bacon.mk): публикация уже сформированного OTA и отдельного SHA-256; сама сумма не заменяет подпись.
+
+Локальный regression-набор обёртки: `python3 -m unittest discover -s scripts/tests -v`. OTA-тесты используют mock host tool: реальный payload не строится и на телефон не устанавливается.

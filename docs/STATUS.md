@@ -31,7 +31,7 @@
 | Cuttlefish-прогон | ❌ | Скрипт оркестрации проверен в 8 offline-сценариях с mock adb/launch_cvd: boot timeout, установка, prebuilt, наличие пакета и HOME; реального запуска не было | `launch_cvd` + чеклист BUILD.md §9 (нужен ПК с KVM) |
 | GSI на реальном телефоне + DSU | ❌ | — | совместимый Treble-телефон с доступным DSU (не гарантируется для каждой модели); [GSI.md](GSI.md) §4–5 |
 | Per-device порт (3–4 ГБ low-end) | ❌ | — | Xperia XA2 / Redmi Note 9/10S / Redmi 12C — [DEVICES.md](DEVICES.md) §7 |
-| Подписанный OTA-релиз | 📄 | скрипт `ota.sh` (syntax OK), пайплайн описан ([OTA.md](OTA.md)) | ключи + прогон `ota_from_target_files` на реальном дереве (Этап 7) |
+| Подписанный OTA-релиз | 📄 | 8 offline-сценариев `ota.sh`: full/incremental, ключ, ошибки инструмента и ZIP, защита исходных файлов и сохранность старого OTA; реальные подписи и payload не проверены ([OTA.md](OTA.md)) | ключи + прогон `ota_from_target_files` на реальном дереве (Этап 7) |
 | Rust Binder-сервис (`doxaiz-sys`) | 🔬 | исследование rsbinder завершено (см. RESEARCH §2.2, ROADMAP этап 6) | выбор библиотеки + прототип + интеграция |
 | Чистые Rust-ОС (Asterinas/moss/BlueOS и др.) | 🔬 | исследование [RUST-OSES.md](RUST-OSES.md) | — (не блокирует 1.0) |
 
