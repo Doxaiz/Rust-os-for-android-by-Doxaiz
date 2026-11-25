@@ -7,7 +7,7 @@
 //!   doxaiz-check pss <файл>               вывод `adb shell dumpsys meminfo <pkg>`
 //!   doxaiz-check <файл>                   сокращение для `meminfo <файл>`
 //!
-//! Код выхода: 0 — бюджет выполнен (Unknown не считаются), 1 — есть FAIL.
+//! Код выхода: 0 — все проверки PASS; 1 — FAIL/ошибка; 2 — неполные данные (Unknown).
 
 use std::fs;
 use std::path::Path;
@@ -37,8 +37,12 @@ fn read_file(path: &str) -> Result<String, ExitCode> {
 
 fn report(verdicts: &[Verdict]) -> ExitCode {
     let mut fails = 0usize;
+    let mut unknowns = 0usize;
     for verdict in verdicts {
         println!("{verdict}");
+        if matches!(verdict, Verdict::Unknown(_)) {
+            unknowns += 1;
+        }
         if verdict.is_fail() {
             fails += 1;
         }
@@ -46,6 +50,9 @@ fn report(verdicts: &[Verdict]) -> ExitCode {
     if fails > 0 {
         eprintln!("бюджет НЕ выполнен: {fails} проверок провалились");
         ExitCode::FAILURE
+    } else if unknowns > 0 || verdicts.is_empty() {
+        eprintln!("недостаточно данных для подтверждения бюджета: {unknowns} неизвестных проверок");
+        ExitCode::from(2)
     } else {
         println!("бюджет выполнен");
         ExitCode::SUCCESS

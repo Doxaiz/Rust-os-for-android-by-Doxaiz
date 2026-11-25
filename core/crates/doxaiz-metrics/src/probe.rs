@@ -144,8 +144,16 @@ pub fn parse_gfxinfo_summary(content: &str) -> GfxSummary {
 /// Проверить джанные кадры против бюджета.
 pub fn check_gfxinfo(summary: &GfxSummary) -> Vec<Verdict> {
     let mut verdicts = Vec::with_capacity(2);
+    if !matches!(summary.total_frames, Some(frames) if frames > 0) {
+        return vec![Verdict::Unknown(
+            "нет отрисованных кадров — бюджет jank оценить нельзя".to_string(),
+        )];
+    }
 
     match summary.janky_percent {
+        Some(pct) if !pct.is_finite() || !(0.0..=100.0).contains(&pct) => {
+            verdicts.push(Verdict::Unknown("некорректный процент jank".to_string()));
+        }
         Some(pct) if pct <= JANK_BUDGET_PERCENT => verdicts.push(Verdict::Pass(format!(
             "Janky frames = {pct:.2}% (бюджет <= {JANK_BUDGET_PERCENT}%)"
         ))),
@@ -159,6 +167,9 @@ pub fn check_gfxinfo(summary: &GfxSummary) -> Vec<Verdict> {
     }
 
     match summary.p90_ms {
+        Some(p90) if !p90.is_finite() || p90 < 0.0 => {
+            verdicts.push(Verdict::Unknown("некорректный p90".to_string()));
+        }
         Some(p90) if p90 <= P90_FRAME_BUDGET_MS => verdicts.push(Verdict::Pass(format!(
             "p90 кадра = {p90:.1} мс (ориентир <= {P90_FRAME_BUDGET_MS} мс для 60 Гц)"
         ))),
@@ -370,6 +381,25 @@ Janky frames: 90 (18.00%)
     fn invalid_rows_do_not_hide_valid_pss() {
         let text = "TOTAL: invalid\nTOTAL PSS: N/A\nTOTAL RSS: 9\nTOTAL 46100 3 4";
         assert_eq!(parse_pkg_meminfo_total(text).total_kb, Some(46_100));
+    }
+
+    #[test]
+    fn zero_frames_cannot_pass_even_with_zero_jank() {
+        let summary = parse_gfxinfo_summary(
+            "Total frames rendered: 0\nJanky frames: 0 (0.00%)\n90th percentile: 0ms",
+        );
+        assert!(check_gfxinfo(&summary).iter().all(|v| matches!(v, Verdict::Unknown(_))));
+    }
+
+    #[test]
+    fn invalid_floating_point_metrics_never_pass() {
+        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, -1.0] {
+            let summary = GfxSummary {
+                total_frames: Some(100), janky_percent: Some(value), p90_ms: Some(value),
+                ..GfxSummary::default()
+            };
+            assert!(check_gfxinfo(&summary).iter().all(|v| matches!(v, Verdict::Unknown(_))));
+        }
     }
 
     #[test]
