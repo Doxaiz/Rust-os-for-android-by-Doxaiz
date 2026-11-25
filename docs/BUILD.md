@@ -233,3 +233,19 @@ fastboot reboot
 | `inherit-product` не найден | строка добавлена не в тот .mk; `grep -n inherit-product device/...` |
 | После удаления Launcher3 нет экрана | не удаляйте его, пока Doxaiz Launcher не HOME (см. LAUNCHER.md) |
 | Не хватает ОЗУ при сборке | `export USE_CCACHE=1`, zram на хосте, `-j` меньше числа потоков |
+
+## Проверка оркестратора сборки без Android-дерева
+
+```bash
+# Из корня репозитория, без скачивания AOSP:
+python3 -m unittest discover -s scripts/tests -v
+```
+
+`test_build.py` проверяет 6 сценариев `scripts/build.sh`: относительный путь с пробелами, абсолютный путь, существующий `.repo`, ошибка sync, ошибка lunch, ошибка m. Подменяются repo, сетевые команды и функции envsetup; реальное копирование overlay и проверка mock APK выполняются штатными helper-скриптами. Это проверка порядка действий и распространения ошибок, **не сборка прошивки**.
+
+Путь дерева приводится к абсолютному до перехода в него. Локальный манифест копируется **после repo init, но до первого repo sync**: один sync вместо двух, без предварительного скачивания исключённых проектов. Удаления всё ещё требуют проверки полной сборкой.
+
+Примеры, сверенные через GitHub API 2026-11-23:
+
+* [Документация repo: Local Manifests](https://github.com/aosp-mirror/tools_repo/blob/main/docs/manifest-format.md) — расположение `.repo/local_manifests/*.xml` и расширение основного манифеста.
+* [LineageOS getting started (lineage-23.0)](https://github.com/LineageOS/android/blob/lineage-23.0/README.mkdn) — разделение init и sync. Пример использован для понимания порядка, не как доказательство совместимости нашей ветки или модели телефона.

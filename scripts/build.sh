@@ -15,7 +15,9 @@ if [ $# -ne 2 ]; then
     echo "Использование: $0 /путь/к/будущему/дереву LUNCH_TARGET" >&2
     exit 2
 fi
-TREE="$1"
+# Абсолютный путь нужен до cd: иначе helper-скрипты получат вложенный путь.
+mkdir -p "$1"
+TREE="$(cd "$1" && pwd -P)"
 LUNCH_TARGET="$2"
 LINEAGE_BRANCH="${DOXAIZ_LINEAGE_BRANCH:-lineage-24.0}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -26,7 +28,7 @@ echo "Ветка LOS: ${LINEAGE_BRANCH}"
 echo "Lunch    : ${LUNCH_TARGET}"
 
 mem_gb=$(awk '/MemTotal/ {printf "%d", $2/1024/1024}' /proc/meminfo)
-disk_gb=$(df -BG --output=avail "${TREE%/*}" 2>/dev/null | tail -1 | tr -dc '0-9' || echo 0)
+disk_gb=$(df -BG --output=avail "${TREE}" 2>/dev/null | tail -1 | tr -dc '0-9' || echo 0)
 echo "Ресурсы  : RAM ~${mem_gb} ГБ, свободно на диске ~${disk_gb} ГБ"
 if [ "${mem_gb:-0}" -lt 12 ]; then
     echo "Предупреждение: меньше 12 ГБ ОЗУ — сборка AOSP, скорее всего, не пройдёт." >&2
@@ -48,12 +50,10 @@ if [ ! -d .repo ]; then
     echo "=== repo init (${LINEAGE_BRANCH}) ==="
     repo init -u https://github.com/LineageOS/android.git -b "${LINEAGE_BRANCH}" --depth=1
 fi
-echo "=== repo sync (может занять часы) ==="
-repo sync -c --no-tags --optimized-fetch --prune -j"$(nproc)"
-
 echo "=== Локальный манифест DoxaizOS ==="
 mkdir -p .repo/local_manifests
 cp "${REPO_ROOT}/manifest/doxaiz.xml" .repo/local_manifests/doxaiz.xml
+echo "=== repo sync (может занять часы; local manifest уже установлен) ==="
 repo sync -c --no-tags --optimized-fetch --prune -j"$(nproc)"
 
 echo "=== Overlay DoxaizOS ==="
