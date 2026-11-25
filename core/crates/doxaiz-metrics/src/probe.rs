@@ -29,6 +29,10 @@ pub struct ColdStart {
     pub total_time_ms: Option<u64>,
     pub wait_time_ms: Option<u64>,
     pub saw_complete: bool,
+    pub status: Option<String>,
+    pub launch_state: Option<String>,
+    pub saw_error: bool,
+    pub reused_activity: bool,
 }
 
 /// Разобрать вывод `adb shell am start -W ...`.
@@ -36,7 +40,15 @@ pub fn parse_am_start_output(content: &str) -> ColdStart {
     let mut out = ColdStart::default();
     for line in content.lines() {
         let line = line.trim();
-        if let Some(rest) = line.strip_prefix("ThisTime:") {
+        if let Some(rest) = line.strip_prefix("Status:") {
+            out.status = Some(rest.trim().to_string());
+        } else if let Some(rest) = line.strip_prefix("LaunchState:") {
+            out.launch_state = Some(rest.trim().to_string());
+        } else if line.starts_with("Error:") || line.starts_with("Error type ") {
+            out.saw_error = true;
+        } else if line.starts_with("Warning: Activity not started") {
+            out.reused_activity = true;
+        } else if let Some(rest) = line.strip_prefix("ThisTime:") {
             out.this_time_ms = rest.trim().parse::<u64>().ok();
         } else if let Some(rest) = line.strip_prefix("TotalTime:") {
             out.total_time_ms = rest.trim().parse::<u64>().ok();
@@ -52,6 +64,18 @@ pub fn parse_am_start_output(content: &str) -> ColdStart {
 /// Проверить холодный старт против бюджета.
 pub fn check_cold_start(out: &ColdStart) -> Vec<Verdict> {
     let mut verdicts = Vec::with_capacity(2);
+
+    if out.saw_error || out.status.as_deref().is_some_and(|status| status != "ok") {
+        return vec![Verdict::Fail("am start сообщил об ошибке или timeout".to_string())];
+    }
+    if out.reused_activity || out.launch_state.as_deref().is_some_and(|state| state != "COLD") {
+        return vec![Verdict::Unknown(
+            "это не подтверждённый холодный старт (warm/hot/повторное использование Activity)".to_string(),
+        )];
+    }
+    if out.status.is_none() || out.launch_state.is_none() {
+        verdicts.push(Verdict::Unknown("нет Status: ok и/или LaunchState: COLD".to_string()));
+    }
 
     match out.total_time_ms {
         Some(total) if total <= COLD_START_BUDGET_MS => verdicts.push(Verdict::Pass(format!(
@@ -245,6 +269,7 @@ mod tests {
     const AM_START_OK: &str = "\
 Starting: Intent { act=android.intent.action.MAIN cat=[android.intent.category.HOME] }
 Status: ok
+LaunchState: COLD
 Activity: com.doxaiz.launcher/.MainActivity
 ThisTime: 213
 TotalTime: 213
@@ -254,6 +279,7 @@ Complete
 
     const AM_START_SLOW: &str = "\
 Status: ok
+LaunchState: COLD
 Activity: com.doxaiz.launcher/.MainActivity
 ThisTime: 700
 TotalTime: 733
@@ -400,6 +426,27 @@ Janky frames: 90 (18.00%)
             };
             assert!(check_gfxinfo(&summary).iter().all(|v| matches!(v, Verdict::Unknown(_))));
         }
+    }
+
+    #[test]
+    fn timeout_and_launch_errors_fail_even_with_fast_timing() {
+        for prefix in ["Status: timeout", "Error: Activity class does not exist", "Error type 3"] {
+            let text = format!("{prefix}\nLaunchState: COLD\nTotalTime: 0\nComplete");
+            assert!(check_cold_start(&parse_am_start_output(&text))
+                .iter().any(|v| matches!(v, Verdict::Fail(_))));
+        }
+    }
+
+    #[test]
+    fn warm_hot_and_reused_activity_are_not_cold_samples() {
+        for state in ["WARM", "HOT", "UNKNOWN"] {
+            let text = format!("Status: ok\nLaunchState: {state}\nTotalTime: 0\nComplete");
+            assert!(check_cold_start(&parse_am_start_output(&text))
+                .iter().all(|v| matches!(v, Verdict::Unknown(_))));
+        }
+        let text = "Warning: Activity not started, its current task has been brought to the front\nStatus: ok\nLaunchState: COLD\nTotalTime: 0\nComplete";
+        assert!(check_cold_start(&parse_am_start_output(text))
+            .iter().all(|v| matches!(v, Verdict::Unknown(_))));
     }
 
     #[test]

@@ -34,7 +34,7 @@ fn valid_pss_passes_and_excessive_pss_fails() {
 fn missing_completion_is_inconclusive_but_failure_has_priority() {
     check("coldstart", "TotalTime: 200", 2);
     check("coldstart", "TotalTime: 900", 1);
-    check("coldstart", "TotalTime: 200\nComplete", 0);
+    check("coldstart", "Status: ok\nLaunchState: COLD\nTotalTime: 200\nComplete", 0);
 }
 
 #[test]
@@ -42,4 +42,19 @@ fn source_derived_zero_frame_report_is_inconclusive() {
     check("jank", "Total frames rendered: 0\nJanky frames: 0 (0.00%)\n90th percentile: 0ms", 2);
     check("jank", "Total frames rendered: 100\nJanky frames: 1 (1.00%)\n90th percentile: 12ms", 0);
     check("jank", "Total frames rendered: 100\nJanky frames: 1 (NaN%)\n90th percentile: NaNms", 2);
+}
+
+#[test]
+fn launch_status_and_state_are_required_for_coldstart_success() {
+    for (prefix, code) in [
+        ("Status: timeout\nLaunchState: COLD", 1),
+        ("Error type 3\nStatus: ok\nLaunchState: COLD", 1),
+        ("Status: ok\nLaunchState: WARM", 2),
+        ("Status: ok\nLaunchState: HOT", 2),
+        ("Status: ok", 2),
+        ("LaunchState: COLD", 2),
+        ("Warning: Activity not started, intent has been delivered to currently running top-most instance.\nStatus: ok\nLaunchState: COLD", 2),
+    ] {
+        check("coldstart", &format!("{prefix}\nTotalTime: 0\nComplete"), code);
+    }
 }

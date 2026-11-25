@@ -3,6 +3,7 @@
 ## [Unreleased] — 2026-11-23
 
 ### Added
+* `coldstart`: по AOSP Android 15/16 добавлены Status/LaunchState и распознавание ошибок/повторного использования Activity. Timeout/ошибка — FAIL, warm/hot/неизвестное состояние — Unknown; быстрый TotalTime + Complete больше не подтверждает холодный старт сам по себе. 2 unit-теста и CLI-тест с 7 сценариями; примеры и источники в PERFORMANCE.md.
 * `doxaiz-check`: Unknown теперь даёт код 2 вместо ложного успеха; FAIL сохраняет код 1. Для gfxinfo пустая выборка кадров, NaN/Inf/отрицательные метрики не проходят бюджет. Проверено поведение нулевой выборки в AOSP ProfileData.cpp; добавлены 2 unit-теста и 4 CLI integration-теста (12 сценариев).
 * `doxaiz-metrics`: по исходникам ActivityThread Android 15/16 исправлен PSS-парсер — поддержка таблицы `TOTAL` без двоеточия и сводки `TOTAL PSS:`, исключение RSS/SWAP, приоритет явной PSS-сводки. Добавлены 5 regression-тестов и 2 синтетические source-derived фикстуры с происхождением; это не замеры устройства.
 * `build.sh`: абсолютный путь дерева до cd, local manifest до первого sync (одна синхронизация вместо двух). 6 offline-сценариев связки build → overlay → APK → lunch → m, включая ошибки этапов и пути с пробелами. Это не сборка Android.

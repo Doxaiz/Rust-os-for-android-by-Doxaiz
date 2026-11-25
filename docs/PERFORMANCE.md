@@ -159,3 +159,20 @@ cargo run -p doxaiz-metrics -- pss pss.txt
 Для jank требуется `Total frames rendered > 0`. Нулевое количество кадров не подтверждает плавность: AOSP печатает `Janky frames: 0 (0.00%)` даже без кадров. NaN, бесконечность, отрицательные значения и проценты вне 0–100 не подтверждают бюджет.
 
 Источник формата (проверен через GitHub API 2026-11-23): [AOSP Android 16 ProfileData.cpp](https://github.com/aosp-mirror/platform_frameworks_base/blob/android-16.0.0_r1/libs/hwui/ProfileData.cpp), `dump`, условие `mTotalFrameCount == 0 ? 0.0f`. Regression-примеры синтетические, не результаты устройства. Проверка положительного количества кадров не гарантирует достаточную длительность или репрезентативность замера.
+
+### Холодный старт: статус и состояние запуска
+
+Для подтверждения бюджета `coldstart` требуются `Status: ok`, `LaunchState: COLD`, `TotalTime` и `Complete`. `Status: timeout` и строки ошибок дают FAIL (код 1); WARM/HOT/UNKNOWN, предупреждение `Activity not started` и отсутствие состояния дают Unknown (код 2), а не подтверждение холодного старта. Для старых форматов без LaunchState нужна отдельная методика: автоматически считать их холодными нельзя.
+
+Пример синтетического валидного ввода (не замер DoxaizOS):
+
+```text
+Status: ok
+LaunchState: COLD
+Activity: com.doxaiz.launcher/.MainActivity
+TotalTime: 213
+WaitTime: 221
+Complete
+```
+
+Формат и предупреждения сверены 2026-11-23 через GitHub API с `ActivityManagerShellCommand.java`: [Android 15](https://github.com/aosp-mirror/platform_frameworks_base/blob/android-15.0.0_r1/services/core/java/com/android/server/am/ActivityManagerShellCommand.java) (blob `bbd432340e8f559d513da79207d8de92fa0020aa`) и [Android 16](https://github.com/aosp-mirror/platform_frameworks_base/blob/android-16.0.0_r1/services/core/java/com/android/server/am/ActivityManagerShellCommand.java) (blob `5c2bd0a0e90f807cba524de2448e61216a60f282`). Наличие `Complete` само по себе не исключает timeout. Подтверждение `COLD` относится к запуску процесса/Activity, а не к очистке дисковых кэшей или репрезентативности серии измерений.
