@@ -166,10 +166,15 @@ sudo usermod -aG kvm,cvdnetwork,render $USER && reboot
 
 # После перезагрузки:
 launch_cvd --daemon
-adb connect 0.0.0.0:6520 && adb devices
+adb connect 127.0.0.1:6520 && adb devices
 ```
 
-Либо одной командой: `scripts/cuttlefish-run.sh` (запускает образ, ставит APK, назначает HOME, печатает meminfo).
+Либо одной командой: `scripts/cuttlefish-run.sh` (запускает **уже собранный** образ, ждёт `sys.boot_completed=1`, ставит APK, назначает и проверяет HOME, печатает meminfo).
+
+* Адрес ADB по умолчанию — `127.0.0.1:6520` на машине сборщика; переопределение: `DOXAIZ_ADB_TARGET=<serial>`.
+* Ожидание загрузки ограничено 300 секундами: `DOXAIZ_BOOT_TIMEOUT=600 scripts/cuttlefish-run.sh /путь/Launcher.apk`. При таймауте скрипт завершается с ошибкой, не пытаясь установить APK.
+* Без локального APK допускается пакет, уже встроенный в образ; если `com.doxaiz.launcher` отсутствует или не стал HOME, скрипт завершается с ошибкой вместо запуска произвольного домашнего экрана.
+* Offline-тесты оркестрации: `python3 -m unittest discover -s scripts/tests -v`. Они используют подменённые adb/launch_cvd и **не доказывают загрузку Android**. При ошибке скрипт не останавливает Cuttlefish автоматически — экземпляр остаётся доступен для диагностики.
 
 В браузере откройте `https://localhost:8443` — экран виртуального телефона.
 
@@ -177,21 +182,21 @@ adb connect 0.0.0.0:6520 && adb devices
 
 ```bash
 # 1. Роль HOME у Doxaiz Launcher:
-adb -s 0.0.0.0:6520 shell cmd package query-intent-activities \
+adb -s 127.0.0.1:6520 shell cmd package query-intent-activities \
     -a android.intent.action.MAIN -c android.intent.category.HOME
 # Ожидаем среди ответов com.doxaiz.launcher/.MainActivity
 
 # 2. Память (цель — docs/ARCHITECTURE.md, §4):
-adb -s 0.0.0.0:6520 shell cat /proc/meminfo | grep -E 'MemTotal|MemAvailable'
-adb -s 0.0.0.0:6520 shell dumpsys meminfo | head -30
+adb -s 127.0.0.1:6520 shell cat /proc/meminfo | grep -E 'MemTotal|MemAvailable'
+adb -s 127.0.0.1:6520 shell dumpsys meminfo | head -30
 
 # 3. Версия DoxaizOS:
-adb -s 0.0.0.0:6520 shell getprop ro.doxaiz.version     # 0.1.0
-adb -s 0.0.0.0:6520 shell getprop ro.config.low_ram     # true
+adb -s 127.0.0.1:6520 shell getprop ro.doxaiz.version     # 0.1.0
+adb -s 127.0.0.1:6520 shell getprop ro.config.low_ram     # true
 
 # 4. Лаунчер холодный старт (замер):
-adb -s 0.0.0.0:6520 shell am force-stop com.doxaiz.launcher
-adb -s 0.0.0.0:6520 shell am start -W -a android.intent.action.MAIN \
+adb -s 127.0.0.1:6520 shell am force-stop com.doxaiz.launcher
+adb -s 127.0.0.1:6520 shell am start -W -a android.intent.action.MAIN \
     -c android.intent.category.HOME
 ```
 

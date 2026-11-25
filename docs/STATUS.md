@@ -28,7 +28,7 @@
 | CI (GitHub Actions, 4 джобы) | ✅ | Rust test+verify, Scripts (bash -n + XML), Docs (links), Launcher APK (информативно) | — |
 | Скачивание релизного APK лаунчера + sha256 | 📄 | 20 offline-сценариев (`scripts/tests/test_fetch_launcher.py`): gh/API, закрепление тега, хеш, ZIP/CRC, ошибки загрузки, сохранность prebuilt и очистка; отсутствие checksum по-прежнему допускается с предупреждением | e2e-прогон на машине с сетью (в песочнице запрещён TLS к release-assets) |
 | Doxaiz Launcher как HOME в образе | 📄 | сверено с исходным кодом лаунчера (v1.0.0): applicationId, HOME-фильтры, без INTERNET, ~854 КиБ | сборка образа + `set-home-activity` на Cuttlefish (Этап 3) |
-| Cuttlefish-прогон | ❌ | — | `launch_cvd` + чеклист BUILD.md §9 (нужен ПК с KVM) |
+| Cuttlefish-прогон | ❌ | Скрипт оркестрации проверен в 8 offline-сценариях с mock adb/launch_cvd: boot timeout, установка, prebuilt, наличие пакета и HOME; реального запуска не было | `launch_cvd` + чеклист BUILD.md §9 (нужен ПК с KVM) |
 | GSI на реальном телефоне + DSU | ❌ | — | совместимый Treble-телефон с доступным DSU (не гарантируется для каждой модели); [GSI.md](GSI.md) §4–5 |
 | Per-device порт (3–4 ГБ low-end) | ❌ | — | Xperia XA2 / Redmi Note 9/10S / Redmi 12C — [DEVICES.md](DEVICES.md) §7 |
 | Подписанный OTA-релиз | 📄 | скрипт `ota.sh` (syntax OK), пайплайн описан ([OTA.md](OTA.md)) | ключи + прогон `ota_from_target_files` на реальном дереве (Этап 7) |
