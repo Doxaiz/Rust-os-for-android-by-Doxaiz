@@ -1,8 +1,8 @@
 //! Парсеры вывода диагностики adb (Android 13–17) и проверка бюджетов DoxaizOS.
 //!
 //! Форматы `dumpsys`/`am start` менялись между ветками Android; если вывод на
-//! целевой системе отличается — сначала упадут тесты (фикстуры — репрезентативный
-//! вывод с Cuttlefish/Android 15), и парсер поправляется вместе с ними.
+//! целевой системе отличается — нужны новые фикстуры. Тестовые примеры синтетические,
+//! включая форматы, сверенные с исходниками AOSP; это не замеры Cuttlefish.
 //!
 //! Бюджеты (стартовая калибровка, калибровать на железе — docs/PERFORMANCE.md):
 //!   * холодный старт HOME (`am start -W` → TotalTime) — ≤ 400 мс;
@@ -180,26 +180,32 @@ pub struct PkgMeminfo {
     pub total_kb: Option<u64>,
 }
 
-/// Разобрать строку `TOTAL:` из `dumpsys meminfo <pkg>`.
-/// Строка ищется как начинающаяся (с опциональными пробелами) со слова TOTAL —
-/// первое число после двоеточия берём как полный PSS в КиБ.
+/// Разобрать PSS: App Summary `TOTAL PSS:`, таблица `TOTAL <числа>`
+/// или старый синтетический формат `TOTAL: <числа>`. RSS/SWAP не являются PSS.
+/// Явная сводка PSS имеет приоритет перед табличным итогом.
 pub fn parse_pkg_meminfo_total(content: &str) -> PkgMeminfo {
-    let mut out = PkgMeminfo::default();
-    for line in content.lines() {
-        let trimmed = line.trim();
-        if !trimmed.starts_with("TOTAL") {
-            continue;
-        }
-        let Some((_, rest)) = trimmed.split_once(':') else {
-            continue;
-        };
-        out.total_kb = rest
-            .split_whitespace()
-            .next()
-            .and_then(|tok| tok.replace(',', "").parse::<u64>().ok());
-        break;
+    fn first_number(value: &str) -> Option<u64> {
+        value.split_whitespace().next()?.replace(',', "").parse().ok()
     }
-    out
+
+    let mut table_total = None;
+    for line in content.lines() {
+        let line = line.trim();
+        if let Some(rest) = line.strip_prefix("TOTAL PSS:") {
+            if let Some(total_kb) = first_number(rest) {
+                return PkgMeminfo { total_kb: Some(total_kb) };
+            }
+        } else if let Some(rest) = line.strip_prefix("TOTAL:") {
+            table_total = table_total.or_else(|| first_number(rest));
+        } else {
+            let mut fields = line.split_whitespace();
+            if fields.next() == Some("TOTAL") {
+                // TOTAL RSS:/SWAP: do not parse as numbers and are ignored.
+                table_total = table_total.or_else(|| fields.next().and_then(first_number));
+            }
+        }
+    }
+    PkgMeminfo { total_kb: table_total }
 }
 
 /// Проверить PSS лаунчера против бюджета (60 МБ, docs/ARCHITECTURE.md §4).
@@ -331,6 +337,39 @@ Janky frames: 90 (18.00%)
             .iter().all(|v| matches!(v, Verdict::Unknown(_))));
         assert!(check_pkg_meminfo(&parse_pkg_meminfo_total(""))
             .iter().all(|v| matches!(v, Verdict::Unknown(_))));
+    }
+
+    #[test]
+    fn aosp_meminfo_table_without_colon() {
+        let parsed = parse_pkg_meminfo_total(include_str!("../tests/fixtures/meminfo-table.txt"));
+        assert_eq!(parsed.total_kb, Some(46_100));
+    }
+
+    #[test]
+    fn aosp_summary_pss_not_rss_or_swap() {
+        let parsed = parse_pkg_meminfo_total(include_str!("../tests/fixtures/meminfo-summary.txt"));
+        assert_eq!(parsed.total_kb, Some(50_000));
+    }
+
+    #[test]
+    fn rss_swap_and_total_prefixes_are_not_pss() {
+        for text in ["TOTAL RSS: 100000", "TOTAL SWAP PSS: 42", "TOTALITY: 12",
+                     "TOTAL RSS: 90000\nTOTAL SWAP (KB): 500", "TOTAL PSS: invalid"] {
+            assert_eq!(parse_pkg_meminfo_total(text).total_kb, None, "{text}");
+        }
+    }
+
+    #[test]
+    fn summary_takes_priority_over_table_in_either_order() {
+        for text in ["TOTAL 123 456\nTOTAL PSS: 789", "TOTAL PSS: 789\nTOTAL 123 456"] {
+            assert_eq!(parse_pkg_meminfo_total(text).total_kb, Some(789));
+        }
+    }
+
+    #[test]
+    fn invalid_rows_do_not_hide_valid_pss() {
+        let text = "TOTAL: invalid\nTOTAL PSS: N/A\nTOTAL RSS: 9\nTOTAL 46100 3 4";
+        assert_eq!(parse_pkg_meminfo_total(text).total_kb, Some(46_100));
     }
 
     #[test]

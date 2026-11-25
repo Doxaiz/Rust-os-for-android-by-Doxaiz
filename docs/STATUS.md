@@ -23,7 +23,7 @@
 | Overlay `doxaiz_gsi.mk` + `AndroidProducts.mk` (GSI) | 📄 | `gsi_arm64` наследование сверено по исходникам LOS lineage-24.0 и `build/make/core/board_config.mk`; `PRODUCT_ENFORCE_ARTIFACT_PATH_REQUIREMENTS=relaxed` по образцу mgsi/* | GSI-сборка на ПК ≥ 32 ГБ ОЗУ (Этап 5, 5-GSI) |
 | Локальный манифест (`manifest/doxaiz.xml`) | 📄 | XML разбирается; совместимость удалений с полной Android-сборкой ещё не проверена | — |
 | Rust workspace `doxaiz-perf` | ✅ | unit-тесты (в CI), граничные значения zram/heap | — |
-| Rust workspace `doxaiz-metrics` | ✅ | 8 тестов; парсеры meminfo/am-start/gfxinfo/meminfo-pkg; бюджеты машинно-проверяемы | проверка на устройстве (Этапы 3–5) |
+| Rust workspace `doxaiz-metrics` | ✅ | Парсеры meminfo/am-start/gfxinfo/meminfo-pkg; добавлены 5 regression-тестов PSS по форматам ActivityThread Android 15/16 (синтетические фикстуры, не логи телефона); бюджеты машинно-проверяемы | проверка на устройстве (Этапы 3–5) |
 | doxaiz-xtask `verify` | ✅ | 32/32 маркера в CI | — |
 | CI (GitHub Actions, 4 джобы) | ✅ | Rust test+verify, Scripts (bash -n + XML), Docs (links), Launcher APK (информативно) | — |
 | Скачивание релизного APK лаунчера + sha256 | 📄 | 20 offline-сценариев (`scripts/tests/test_fetch_launcher.py`): gh/API, закрепление тега, хеш, ZIP/CRC, ошибки загрузки, сохранность prebuilt и очистка; отсутствие checksum по-прежнему допускается с предупреждением | e2e-прогон на машине с сетью (в песочнице запрещён TLS к release-assets) |
