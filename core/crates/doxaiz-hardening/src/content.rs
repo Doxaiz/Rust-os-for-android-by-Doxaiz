@@ -54,6 +54,10 @@ fn regular_inodes(image: &Path) -> Result<BTreeMap<u32, u64>, String> {
         }
     }
     if result.is_empty() { return Err("no regular files found".into()); }
+    let bytes: u64 = result.values().sum();
+    if result.len() > 10000 || bytes > 4 * 1024 * 1024 * 1024 {
+        return Err("regular content audit exceeds file/disk bound".into());
+    }
     Ok(result)
 }
 
@@ -137,4 +141,38 @@ mod tests {
         assert_eq!(short(&[1,2,3,4], 0), 513);
         assert_eq!(word(&[1,2,3,4], 0), 67305985);
     }
+    #[test]
+    fn synthetic_inode_bitmap_selects_only_allocated_nonreserved_regular_files() {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        let path = std::env::temp_dir().join(format!("doxaiz-inode-test-{}-{}", std::process::id(), COUNTER.fetch_add(1, Ordering::Relaxed)));
+        let mut bytes = vec![0u8; 5 * 4096];
+        bytes[1024..1028].copy_from_slice(&32u32.to_le_bytes());
+        bytes[1048..1052].copy_from_slice(&2u32.to_le_bytes());
+        bytes[1064..1068].copy_from_slice(&32u32.to_le_bytes());
+        bytes[1080..1082].copy_from_slice(&0xef53u16.to_le_bytes());
+        bytes[1112..1114].copy_from_slice(&128u16.to_le_bytes());
+        bytes[4100..4104].copy_from_slice(&2u32.to_le_bytes()); // inode bitmap
+        bytes[4104..4108].copy_from_slice(&3u32.to_le_bytes()); // inode table
+        // Reserved regular inode 7, allocated regular 11, directory 12;
+        // regular inode 13 has bytes in the table but is NOT allocated.
+        for (inode, mode) in [(7, 0x8000u16), (11, 0x8000), (12, 0x4000), (13, 0x8000)] {
+            let offset = 3 * 4096 + (inode - 1) * 128;
+            bytes[offset..offset+2].copy_from_slice(&mode.to_le_bytes());
+            bytes[offset+4..offset+8].copy_from_slice(&123u32.to_le_bytes());
+            if inode != 13 { bytes[2 * 4096 + (inode-1)/8] |= 1 << ((inode-1)%8); }
+        }
+        let mut file = OpenOptions::new().create_new(true).write(true).open(&path).unwrap();
+        file.write_all(&bytes).unwrap(); drop(file);
+        assert_eq!(regular_inodes(&path).unwrap(), BTreeMap::from([(11, 123)]));
+        // meta_bg is not silently interpreted using the wrong descriptor map.
+        bytes[1120..1124].copy_from_slice(&0x10u32.to_le_bytes());
+        fs::write(&path, &bytes).unwrap();
+        assert!(regular_inodes(&path).unwrap_err().contains("unsupported ext4"));
+        bytes.truncate(1050);
+        fs::write(&path, &bytes).unwrap();
+        assert!(regular_inodes(&path).is_err());
+        fs::remove_file(path).unwrap();
+    }
+
 }
