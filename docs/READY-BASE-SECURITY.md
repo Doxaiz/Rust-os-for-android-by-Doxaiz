@@ -138,3 +138,29 @@ Workspace `cargo test` прошёл в полном [CI 46171240670](https://git
 **Практический вывод:** полный unshare на текущем filesystem layout/размере не прошёл из-за ошибок выделения блоков. Это нехватка доступных блоков в данном filesystem для этой операции, не доказательство нехватки RAM/диска CI-хоста или телефона. Прямой image-edit guard остаётся включённым. Нельзя просто стереть shared_blocks flag или принудительно писать в старые extents.
 
 Следующий этап требует отдельного проверенного пути: изменение layout только disposable копии с сохранением metadata/содержимого и повторным fsck, либо перепаковка/другой редактируемый upstream вариант после нового аудита. Размер раздела телефона не увеличивать по аналогии с host-файлом; AVB/partition bounds остаются непроверенными. На этом этапе никакие resize/unshare записи, APK-интеграция или выпуск image **не выполнены**. Готовность DoxaizOS остаётся **25–30%**.
+
+## Положительный эксперимент: unshare на увеличенной disposable копии
+
+После отрицательной read-only оценки добавлен отдельный Rust CLI:
+
+```text
+doxaiz-normalize-experiment --allow-unbooted-experiment PINNED_RAW_IMAGE NEW_REPORT_DIRECTORY
+```
+
+Это **не** `doxaiz-experiment-image`: прежний data-only CLI и его shared_blocks guard сохранены. Новый инструмент сначала повторяет source/path/SHA проверки и read-only диагностику, создаёт **новый обычный файл**, сверяет SHA копии и увеличивает только этот host-файл до 4 GiB. Затем запускает ограниченные timeout команды resize2fs → e2fsck unshare → read-only fsck. Для unshare используется write/repair режим только на disposable копии; возможные изменения e2fsck означают, что нужна дальнейшая независимая сверка всех файлов. Исходник остаётся неизменяемым входом, mount/root/запуск программ из Android image не используются. Нельзя передавать увеличенный image в прошивальщик.
+
+[Run **46179580865**](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/runs/46179580865), source 28c8a5b, **SUCCESS**:
+
+- resize, unshare и финальный read-only fsck: exit **0**;
+- shared_blocks feature после настоящего unshare отсутствует (отдельная Rust проверка superblock, не ручное стирание флага);
+- `source_unchanged=true`: исходный SHA до/после совпадает;
+- два исходных remote-support файла сохранили exact reviewed bytes;
+- финальная сводка fsck: 6674/15360 files, 501161/1048576 blocks. Это состояние **увеличенной копии**, не RAM и не размер раздела телефона;
+- hash экспериментальной копии: `40309c9f0db31b8db0736690990cb59c46b50462e190b42f5936a12f36591e37`. Не pin для произвольных будущих normalized outputs: timestamps/allocator/tool versions могут менять байты;
+- копия **удалена инструментом**, наружу сохранены только небольшие отчёты. Нет downloadable/flashable image.
+
+[Evidence](evidence/normalization-46179580865.json) содержит API notices. Для двух файлов stat/xattrs записаны до/после. В первом успешном run 46179331846 эти полные строки также получены отдельно и локально сравнены: все четыре пары равны, включая SELinux context. Это **не** полный filesystem metadata/content audit. Первый run потерял часть API notices из-за лимита GitHub на один step; во втором сообщения сгруппированы (5 notices), verdict публикуется первым. Full CI [46179580867](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/runs/46179580867) SUCCESS.
+
+**Снято:** техническая невозможность сделать unshare именно на данном host-кандидате при наличии дополнительного места. **Не снято:** security acceptance ROM, полнота сохранения содержимого/metadata, интеграция замен, AVB, совместимость vendor и размер реального раздела, загрузка/работоспособность/экономия RAM. Предыдущий отрицательный результат остаётся верен для оригинального размера.
+
+Следующий gate — независимый полный manifest содержимого/metadata до/после normalization (включая symlinks, hardlinks и xattrs), затем новый baseline и повторное планирование двухфайловой правки. Не использовать исходные offsets как разрешение на запись. Только после этого — отдельный patch experiment; ни загрузка, ни ускорение данным тестом не подтверждены. Общая готовность остаётся **25–30%**.

@@ -18,6 +18,8 @@ Rust hardening preparation: run 46171662508 SUCCESS — release-инструме
 
 Read-only unshare feasibility: run 46178504921 записал диагностику успешно, но e2fsck dry-run exit 4 — не удалось выделить блоки для полного unshare. SHA исходника неизменен; normalized/modified image не создан. [Точные наблюдения](READY-BASE-SECURITY.md), не путать SUCCESS workflow со снятием blocker.
 
+**Новый положительный результат — только host layout:** run 46179580865 SUCCESS. Rust-инструмент на отдельной 4 GiB копии выполнил resize2fs → unshare → финальный read-only fsck exit 0; shared_blocks снят штатным unshare, исходный SHA неизменен. Содержимое двух reviewed файлов сохранено, но полная сверка всех файлов/metadata отсутствует. Копия удалена, hardening не применён, boot/partition fit не проверены. [Evidence](evidence/normalization-46179580865.json). Это снимает host-техническое препятствие для следующего эксперимента, **не security blocker ROM**. Готовность пока **25–30%**.
+
 ## Три уровня готовности
 
 | Уровень | Состояние | Пояснение |
