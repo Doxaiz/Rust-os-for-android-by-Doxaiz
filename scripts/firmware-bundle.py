@@ -112,6 +112,14 @@ def verify(args):
     expected_names = {'images.zip', 'cvd-host_package.tar.gz', 'repo-manifest.xml'}
     if metadata.get('schema') != 1 or set(metadata.get('artifacts', {})) != expected_names:
         raise ValueError('unsupported bundle schema/artifact set')
+    expected = metadata.get('expected')
+    if (not isinstance(expected, dict) or expected.get('low_ram') is not True or
+            any(not isinstance(expected.get(key), str) or not expected[key].strip() or
+                any(ord(char) < 32 for char in expected[key])
+                for key in ('version', 'fingerprint'))):
+        raise ValueError('invalid expected firmware identity')
+    if not re.fullmatch(r'[0-9a-f]{40}', metadata.get('source_commit', '')):
+        raise ValueError('invalid source commit')
     for name in sorted(expected_names):
         artifact = args.bundle / name
         entry = metadata['artifacts'][name]
