@@ -10,7 +10,7 @@ fn main() -> ExitCode {
     }
     match doxaiz_hardening::image::unshare_feasibility(Path::new(&args[0]), Path::new(&args[1])) {
         Ok(()) => {
-            println!("Read-only unshare diagnostic recorded. Read e2fsck_exit and diagnostics. NO image modified, NO boot acceptance.");
+            println!("Read-only unshare diagnostic recorded. Read supervisor_exit, diagnostic_completed and diagnostics. NO image modified, NO boot acceptance.");
             ExitCode::SUCCESS
         }
         Err(error) => {

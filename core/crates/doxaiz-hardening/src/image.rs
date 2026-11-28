@@ -3,7 +3,7 @@
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use crate::{ORIGINAL_RC, ORIGINAL_SCRIPT, REPLACEMENT_RC, REPLACEMENT_SCRIPT};
 
@@ -185,20 +185,52 @@ pub fn unshare_feasibility(input: &Path, output: &Path) -> Result<(), String> {
     if flags & 0x4000 == 0 { return Err("reviewed shared_blocks layout expected".into()); }
     // -n opens the FS read-only and simulates allocation. No -y/-p, mount,
     // resize, feature-bit override or image mutation is available in this mode.
-    let result = Command::new("timeout").args(probe_args(name))
-        .env("LC_ALL", "C").output().map_err(|e| e.to_string())?;
-    if result.stdout.len() > 1024 * 1024 || result.stderr.len() > 1024 * 1024 {
-        return Err("e2fsck diagnostic output too large".into());
-    }
+    let mut child = Command::new("timeout").args(probe_args(name))
+        .env("LC_ALL", "C").stdout(Stdio::piped()).stderr(Stdio::piped())
+        .spawn().map_err(|e| e.to_string())?;
+    let stdout = child.stdout.take().ok_or("stdout pipe missing")?;
+    let stderr = child.stderr.take().ok_or("stderr pipe missing")?;
+    // Drain BOTH streams concurrently with bounded memory; e2fsck may emit
+    // megabytes of repeated allocation prompts even with read-only -n.
+    let out = std::thread::spawn(move || drain_excerpt(stdout));
+    let err = std::thread::spawn(move || drain_excerpt(stderr));
+    let status = child.wait().map_err(|e| e.to_string())?;
+    let (stdout, stdout_bytes, stdout_truncated) = out.join().map_err(|_| "stdout reader panicked")??;
+    let (stderr, stderr_bytes, stderr_truncated) = err.join().map_err(|_| "stderr reader panicked")??;
     if sha(name)? != INPUT_SHA { return Err("input changed during read-only diagnostic".into()); }
-    let code = result.status.code().ok_or("e2fsck terminated by signal")?;
-    if !matches!(code, 0 | 1 | 2 | 4) { return Err(format!("e2fsck diagnostic failed: exit {code}")); }
+    let code = status.code().ok_or("e2fsck supervisor terminated by signal")?;
+    let completed = matches!(code, 0 | 1 | 2 | 4);
     fs::create_dir(output).map_err(|e| e.to_string())?;
-    write_probe_file(&output.join("e2fsck.stdout.txt"), &result.stdout)?;
-    write_probe_file(&output.join("e2fsck.stderr.txt"), &result.stderr)?;
+    write_probe_file(&output.join("e2fsck.stdout.txt"), &stdout)?;
+    write_probe_file(&output.join("e2fsck.stderr.txt"), &stderr)?;
     let conclusion = if code == 0 { "dry-run-exit-zero-not-actual-unshare" } else { "nonzero-inconclusive-or-infeasible-see-diagnostics" };
-    let report = format!("scope=read-only-unshare-feasibility\ninput_sha256={INPUT_SHA}\ninput_unchanged=true\ne2fsck_exit={code}\nassessment={conclusion}\nimage_modified=false\nnormalized_image_created=false\nboot_tested=false\nrelease_approved=false\n");
+    let report = format!("scope=read-only-unshare-feasibility\ninput_sha256={INPUT_SHA}\ninput_unchanged=true\nsupervisor_exit={code}\ndiagnostic_completed={completed}\nstdout_bytes={stdout_bytes}\nstdout_excerpt={stdout_truncated}\nstderr_bytes={stderr_bytes}\nstderr_excerpt={stderr_truncated}\nassessment={conclusion}\nimage_modified=false\nnormalized_image_created=false\nboot_tested=false\nrelease_approved=false\n");
     write_probe_file(&output.join("result.txt"), report.as_bytes())
+}
+
+fn drain_excerpt(mut source: impl Read) -> Result<(Vec<u8>, u64, bool), String> {
+    const HALF: usize = 16384;
+    let mut head = Vec::with_capacity(HALF);
+    let mut tail = Vec::with_capacity(HALF);
+    let mut buffer = [0u8; 8192];
+    let mut total = 0u64;
+    loop {
+        let count = source.read(&mut buffer).map_err(|e| e.to_string())?;
+        if count == 0 { break; }
+        total = total.saturating_add(count as u64);
+        let prefix = (HALF - head.len()).min(count);
+        head.extend_from_slice(&buffer[..prefix]);
+        let remainder = &buffer[prefix..count];
+        if tail.len() + remainder.len() > HALF {
+            let excess = tail.len() + remainder.len() - HALF;
+            tail.drain(..excess);
+        }
+        tail.extend_from_slice(remainder);
+    }
+    let truncated = total > (2 * HALF) as u64;
+    if truncated { head.extend_from_slice(b"\n[TRUNCATED MIDDLE: bounded diagnostic excerpt]\n"); }
+    head.extend_from_slice(&tail);
+    Ok((head, total, truncated))
 }
 
 fn probe_args(name: &str) -> [&str; 6] {
@@ -214,6 +246,25 @@ fn write_probe_file(path: &Path, bytes: &[u8]) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn diagnostic_capture_keeps_bounded_head_and_tail() {
+        let mut bytes = vec![b'x'; 100000];
+        bytes[..5].copy_from_slice(b"start");
+        bytes[99997..].copy_from_slice(b"end");
+        let (excerpt, count, truncated) = drain_excerpt(std::io::Cursor::new(bytes)).unwrap();
+        assert_eq!(count, 100000);
+        assert!(truncated);
+        assert!(excerpt.len() < 33000);
+        assert!(excerpt.starts_with(b"start"));
+        assert!(excerpt.ends_with(b"end"));
+        for bytes in [Vec::new(), b"short log".to_vec(), vec![b'y'; 32768]] {
+            let (excerpt, count, truncated) = drain_excerpt(std::io::Cursor::new(&bytes)).unwrap();
+            assert!(!truncated);
+            assert_eq!(count, bytes.len() as u64);
+            assert_eq!(excerpt, bytes);
+        }
+    }
+
     #[test]
     fn feasibility_command_is_read_only_and_has_no_repair_flags() {
         let args = probe_args("/owned/regular-file.img");
