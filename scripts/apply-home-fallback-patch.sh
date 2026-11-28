@@ -33,3 +33,6 @@ for name in ('AndroidManifest.xml', 'quickstep/AndroidManifest-launcher.xml'):
         raise SystemExit(f'Unexpected HOME filter in {name}')
 print('SOURCE PATCH ONLY: stock HOME priority -1; requires real build/boot/recents/fallback testing')
 PY
+# repo manifest -r does NOT capture these working-tree changes. Keep these
+# digests and repo diff alongside the build log for provenance/reproduction.
+sha256sum "$patch" "$launcher/AndroidManifest.xml" "$launcher/quickstep/AndroidManifest-launcher.xml"

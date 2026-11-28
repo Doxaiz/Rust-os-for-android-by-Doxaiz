@@ -2,7 +2,7 @@
 # NEGATIVE integration experiment ONLY on disposable stock Cuttlefish userdebug.
 # Pushes our existing APK + XML into overlayfs, creates a fresh user, checks
 # XML-alone failure and user choice persistence. NOT a built DoxaizOS firmware test.
-set -euo pipefail
+set -Eeuo pipefail
 [ "${GITHUB_ACTIONS:-}" = true ] && [ "${RUNNER_ENVIRONMENT:-}" = github-hosted ] || {
     echo 'Refusing system mutation outside a disposable hosted runner' >&2; exit 1;
 }
@@ -12,6 +12,7 @@ repo="$(cd "$(dirname "$0")/.." && pwd)"
 report="$repo/reports/home-policy"
 [ ! -e "$report" ] || { echo 'Report already exists' >&2; exit 1; }
 mkdir -p "$report"
+trap 'printf "line=%s command=%s\n" "$LINENO" "$BASH_COMMAND" > "$report/failure.txt"' ERR
 adb_cmd() { timeout 30s adb -s "$serial" "$@"; }
 prop() { adb_cmd shell getprop "$1" | tr -d '\r\n'; }
 case "$(prop ro.hardware)" in cutf_*|cuttlefish*) ;; *) exit 1 ;; esac

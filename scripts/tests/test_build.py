@@ -9,6 +9,7 @@ import unittest
 import zipfile
 
 from test_fetch_launcher import MOCK
+from test_home_source_patch import MANIFEST
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'build.sh'
 REPO = r"""
@@ -63,7 +64,8 @@ class BuildTests(unittest.TestCase):
     def test_orchestration(self):
         for mode in ('relative', 'absolute', 'existing_tree', 'sync_failure',
                      'lunch_failure', 'build_failure', 'missing_launcher',
-                     'missing_properties', 'dumpvar_failure', 'unverified_apk'):
+                     'missing_properties', 'dumpvar_failure', 'unverified_apk',
+                     'cf_source_missing', 'cf_source_ok'):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory(prefix='build test ') as tmp:
                 root = Path(tmp)
                 bindir = root / 'bin'
@@ -79,6 +81,11 @@ class BuildTests(unittest.TestCase):
                 tree = root / 'android tree'
                 if mode == 'existing_tree':
                     (tree / '.repo').mkdir(parents=True)
+                if mode == 'cf_source_ok':
+                    launcher = tree / 'packages/apps/Launcher3'
+                    (launcher / 'quickstep').mkdir(parents=True)
+                    for name in ('AndroidManifest.xml', 'quickstep/AndroidManifest-launcher.xml'):
+                        (launcher / name).write_text(MANIFEST)
                 build_calls = root / 'build-calls'
                 env = dict(os.environ, PATH=str(bindir) + ':' + os.environ['PATH'],
                            CASE='checksum_missing' if mode == 'unverified_apk' else 'valid',
@@ -87,15 +94,19 @@ class BuildTests(unittest.TestCase):
                            CALLS=str(root / 'network-calls'), FIXTURE=str(fixture),
                            HASH=hashlib.sha256(fixture.read_bytes()).hexdigest())
                 target = str(tree) if mode == 'absolute' else 'android tree'
-                result = subprocess.run(['bash', str(SCRIPT), target, 'test-userdebug'],
+                lunch = 'doxaiz_cf_x86_64_phone-trunk_staging-userdebug' if mode.startswith('cf_source_') else 'test-userdebug'
+                result = subprocess.run(['bash', str(SCRIPT), target, lunch],
                                         cwd=root, env=env, capture_output=True, text=True, timeout=20)
-                success = mode in ('relative', 'absolute', 'existing_tree')
+                success = mode in ('relative', 'absolute', 'existing_tree', 'cf_source_ok')
                 self.assertEqual(result.returncode == 0, success, result.stdout + result.stderr)
                 trace = build_calls.read_text().splitlines()
                 self.assertEqual(trace.count('sync'), 1)
                 self.assertEqual(trace.count('init'), 0 if mode == 'existing_tree' else 1)
                 if success:
-                    self.assertIn('lunch test-userdebug', trace)
+                    self.assertIn('lunch ' + lunch, trace)
+                    if mode == 'cf_source_ok':
+                        self.assertIn('android:priority="-1"',
+                                      (tree / 'packages/apps/Launcher3/AndroidManifest.xml').read_text())
                     self.assertTrue(any(line.startswith('m -j') for line in trace))
                     self.assertIn('=== Готово.', result.stdout)
                     self.assertTrue((tree / 'vendor/doxaiz/products/doxaiz_base.mk').is_file())
@@ -105,7 +116,7 @@ class BuildTests(unittest.TestCase):
                 else:
                     self.assertNotIn('=== Готово.', result.stdout)
                 if mode in ('sync_failure', 'lunch_failure', 'missing_launcher',
-                            'missing_properties', 'dumpvar_failure', 'unverified_apk'):
+                            'missing_properties', 'dumpvar_failure', 'unverified_apk', 'cf_source_missing'):
                     self.assertFalse(any(line.startswith('m ') for line in trace))
 
 
