@@ -156,6 +156,21 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
           script: bash scripts/emulator-smoke.sh overlay/vendor/doxaiz/apps/DoxaizLauncher/DoxaizLauncher.apk reports/emulator-api29
+      - name: Summarize real emulator result
+        if: always()
+        run: |
+          {
+            echo '## Android Emulator API 29 / 2048 MB (not DoxaizOS firmware)'
+            if [ -f reports/emulator-api29/result.txt ]; then
+              cat reports/emulator-api29/result.txt
+              echo '```text'
+              cat reports/emulator-api29/start.txt
+              cat reports/emulator-api29/home.txt
+              echo '```'
+            else
+              echo 'No successful smoke result. Inspect failed steps and artifacts.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Save emulator evidence (not a firmware release)
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

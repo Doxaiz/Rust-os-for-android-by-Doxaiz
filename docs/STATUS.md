@@ -25,7 +25,7 @@
 | Rust workspace `doxaiz-perf` | ✅ | unit-тесты (в CI), граничные значения zram/heap | — |
 | Rust workspace `doxaiz-metrics` | ✅ | Парсеры meminfo/am-start/gfxinfo/meminfo-pkg; добавлены 5 regression-тестов PSS по форматам ActivityThread Android 15/16 (синтетические фикстуры, не логи телефона); бюджеты машинно-проверяемы | проверка на устройстве (Этапы 3–5) |
 | doxaiz-xtask `verify` | ✅ | 32/32 маркера в CI | — |
-| CI (GitHub Actions, 4 джобы) | ✅ | Rust test+verify, Scripts (bash -n + XML), Docs (links), Launcher APK (информативно) | — |
+| CI (GitHub Actions, 5 джобов) | ✅ | Rust test+verify, Scripts (bash -n + XML), Docs (links), Launcher APK (информативно) | — |
 | Скачивание релизного APK лаунчера + sha256 | 📄 | 26 offline-сценариев (`scripts/tests/test_fetch_launcher.py`): gh/API, закрепление тега, хеш, ZIP/CRC, ошибки загрузки, сохранность prebuilt и очистка; checksum обязателен по умолчанию; явный dev override запрещён в build.sh; сертификат подписи не проверяется | e2e-прогон на машине с сетью (в песочнице запрещён TLS к release-assets) |
 | Doxaiz Launcher как HOME в образе | 📄 | сверено с исходным кодом лаунчера (v1.0.0): applicationId, HOME-фильтры, без INTERNET, ~854 КиБ | сборка образа + `set-home-activity` на Cuttlefish (Этап 3) |
 | Cuttlefish-прогон | ❌ | Скрипт оркестрации проверен в 8 offline-сценариях с mock adb/launch_cvd: boot timeout, установка, prebuilt, наличие пакета и HOME; реального запуска не было | `launch_cvd` + чеклист BUILD.md §9 (нужен ПК с KVM) |
@@ -47,4 +47,8 @@
 
 Основной `build.sh` проверен в 10 offline-сценариях с подменёнными repo/envsetup/сетью; это подтверждает оркестрацию, но не совместимость Android-продукта или работоспособность образа. Сводная оценка готовности к релизу остаётся **~25–30%**.
 
-Проверка сборочного продукта усилена: до `m` проверяются вычисленные модуль Launcher и свойства DoxaizOS. Это fail-fast конфигурации, а не доказательство состава конечного образа. Общий набор скриптов — 63 offline-сценария; результаты реальной загрузки ОС отсутствуют.
+Проверка сборочного продукта усилена: до `m` проверяются вычисленные модуль Launcher и свойства DoxaizOS. Это fail-fast конфигурации, а не доказательство состава конечного образа. Общий набор скриптов — 67 offline-сценариев; результаты реальной загрузки ОС отсутствуют.
+
+## Настоящий Android Emulator (отдельно от прошивки)
+
+Добавлен CI-job Android Emulator API 29 / x86_64 / 2048 МБ RAM с KVM на GitHub runner. Он устанавливает релизный Launcher, проверяет HOME/resumed Activity и сохраняет скриншот/логи. История и ограничения — [EMULATION.md](EMULATION.md). Это тест приложения на штатном Android, не сборка или загрузка образа DoxaizOS и не проверка Redmi 9A. Во время добавления этой записи прогон af60d6b прошёл загрузку APK и KVM, шаг Android-теста ещё выполнялся; успешный итог пока не подтверждён.
