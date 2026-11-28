@@ -32,6 +32,11 @@ elif args[:3] == ['shell', 'dumpsys', 'meminfo']:
 elif args[:3] == ['shell', 'dumpsys', 'gfxinfo']:
     if mode != 'empty_gfx':
         print('Total frames rendered: 100\nJanky frames: 1 (1.00%)\n90th percentile: 12ms')
+elif args == ['shell', 'df', '-k', '/data']:
+    if mode == 'stock_df_failure':
+        sys.exit(1)
+    if mode != 'stock_empty_df':
+        print('Filesystem 1K-blocks Used Available Use% Mounted on\n/dev/mock 20000000 15000000 5000000 75% /data')
 elif args[:2] == ['shell', 'getprop']:
     print('synthetic-property')
 else:
@@ -42,7 +47,8 @@ else:
 class CollectDeviceTests(unittest.TestCase):
     def test_capture_and_failure_safety(self):
         for mode in ('success', 'offline', 'booting', 'no_package', 'dump_failure',
-                     'empty_gfx', 'existing_output'):
+                     'empty_gfx', 'existing_output', 'stock', 'stock_df_failure',
+                     'stock_empty_df', 'bad_mode'):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
                 bindir = root / 'bin'
@@ -57,13 +63,19 @@ class CollectDeviceTests(unittest.TestCase):
                 calls = root / 'calls'
                 env = dict(os.environ, PATH=str(bindir) + ':' + os.environ['PATH'],
                            CASE=mode, CALLS=str(calls))
-                result = subprocess.run(['bash', str(SCRIPT), 'chosen-serial', str(output)],
+                args = ['bash', str(SCRIPT), 'chosen-serial', str(output)]
+                if mode.startswith('stock'):
+                    args.append('--stock')
+                if mode == 'bad_mode':
+                    args.append('--typo')
+                result = subprocess.run(args,
                                         env=env, capture_output=True, text=True, timeout=10)
-                self.assertEqual(result.returncode == 0, mode == 'success', result.stdout + result.stderr)
+                self.assertEqual(result.returncode == 0, mode in ('success', 'stock'), result.stdout + result.stderr)
                 self.assertEqual(list(root.rglob('.device-report.*')), [])
-                if mode == 'success':
+                if mode in ('success', 'stock'):
                     self.assertEqual({p.name for p in output.iterdir()},
-                                     {'context.txt', 'meminfo.txt', 'pss.txt', 'gfxinfo.txt'})
+                                     ({'context.txt', 'meminfo.txt', 'storage.txt'} if mode == 'stock' else
+                                      {'context.txt', 'meminfo.txt', 'pss.txt', 'gfxinfo.txt'}))
                     self.assertEqual(output.stat().st_mode & 0o777, 0o700)
                     self.assertIn('collected_at_utc=', (output / 'context.txt').read_text())
                 elif mode == 'existing_output':
@@ -73,6 +85,8 @@ class CollectDeviceTests(unittest.TestCase):
                     self.assertFalse(output.exists())
                 if calls.exists():
                     commands = [json.loads(line) for line in calls.read_text().splitlines()]
+                    if mode.startswith('stock'):
+                        self.assertFalse(any('dumpsys' in c or 'pm' in c for c in commands))
                     for command in commands:
                         self.assertEqual(command[:2], ['-s', 'chosen-serial'])
                         self.assertFalse({'install', 'reboot', 'root', 'force-stop', 'reset'} & set(command))

@@ -199,3 +199,11 @@ cargo run --manifest-path core/Cargo.toml -p doxaiz-metrics --bin doxaiz-check -
 Каталог создаётся с правами 0700; fingerprint и список приложений в meminfo могут быть чувствительными. `reports/` исключён из git; перед передачей отчёта проверьте содержимое. В другом каталоге игнорирование не гарантируется.
 
 Форматы парсеров сопоставлены с ActivityThread/ProfileData AOSP (ссылки выше). Offline-тест `test_collect_device.py` проверяет только оркестрацию с mock adb; настоящего отчёта с телефона пока нет.
+
+### Штатная MIUI без установленного лаунчера
+
+```bash
+bash scripts/collect-device.sh SERIAL reports/stock-001 --stock
+```
+
+В этом режиме не вызываются pm/dumpsys для Doxaiz Launcher: сохраняются `meminfo.txt`, `storage.txt` (`df -k /data`) и `context.txt`. Контекст дополнен model/device, списками 32/64-bit ABI, Treble, vendor SDK/VNDK и несколькими boot-свойствами. Пустое свойство — неизвестное значение; эти строки не являются автоматическим заключением о совместимости GSI. Свободное место не доказывает исправность eMMC. Требования Linux, GNU coreutils, авторизованного ADB и загруженного Android сохраняются; установка приложений и разблокировка не нужны.
