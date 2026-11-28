@@ -14,6 +14,11 @@ fn main() -> ExitCode {
         }
         Err(error) => {
             eprintln!("Experiment refused/failed: {error}. Any partial output is invalid; do not use it.");
+            if std::env::var("GITHUB_ACTIONS").as_deref() == Ok("true") {
+                let message = error.replace('%', "%25").replace('\r', "%0D").replace('\n', "%0A");
+                eprintln!("::error title=Rust image experiment refused::{message}");
+            }
+
             ExitCode::FAILURE
         }
     }
