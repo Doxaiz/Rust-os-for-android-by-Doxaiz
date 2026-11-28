@@ -108,8 +108,13 @@ def unpack(args):
             launcher = stage / 'bin/launch_cvd'
             stopper = stage / 'bin/stop_cvd'
             for tool in (launcher, stopper):
-                if not tool.is_file() or tool.is_symlink() or not tool.stat().st_mode & stat.S_IXUSR:
-                    raise ValueError(f'missing/non-executable regular host tool: {tool.name}')
+                # Real AOSP host packages use launch_cvd/stop_cvd symlinks.
+                # Accept only links resolving to a regular executable INSIDE
+                # this freshly extracted tree, never a host binary elsewhere.
+                resolved = tool.resolve(strict=True)
+                resolved.relative_to(stage.resolve())
+                if not resolved.is_file() or not resolved.stat().st_mode & stat.S_IXUSR:
+                    raise ValueError(f'missing/non-executable host tool: {tool.name}')
             if not list(stage.glob('*.img')):
                 raise ValueError('no top-level image in bundle')
             stage.rename(args.output)

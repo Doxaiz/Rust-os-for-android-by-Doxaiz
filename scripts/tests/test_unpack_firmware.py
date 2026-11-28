@@ -29,7 +29,15 @@ def fixture_bundle(root, case='good'):
             payload = b'#!/bin/sh\nexit 0\n'
             entry.mode = 0o644 if case == 'no_exec' else 0o755
             entry.size = len(payload)
-            archive.addfile(entry, io.BytesIO(payload))
+            if case == 'good_link' and name == 'bin/launch_cvd':
+                entry.name = 'bin/real_launcher'
+                archive.addfile(entry, io.BytesIO(payload))
+                link = tarfile.TarInfo(name)
+                link.type = tarfile.SYMTYPE
+                link.linkname = 'real_launcher'
+                archive.addfile(link)
+            else:
+                archive.addfile(entry, io.BytesIO(payload))
         if case in ('tar_traversal', 'tar_absolute', 'tar_link', 'tar_child', 'hardlink', 'fifo'):
             name = {'tar_traversal': '../escape', 'tar_absolute': '/escape'}.get(case, 'link')
             entry = tarfile.TarInfo(name)
@@ -58,7 +66,7 @@ def fixture_bundle(root, case='good'):
 
 class UnpackFirmwareTests(unittest.TestCase):
     def test_valid_and_adversarial_archives(self):
-        for case in ('good', 'zip_traversal', 'zip_link', 'collision', 'tar_traversal',
+        for case in ('good', 'good_link', 'zip_traversal', 'zip_link', 'collision', 'tar_traversal',
                      'tar_absolute', 'tar_link', 'tar_child', 'hardlink', 'fifo', 'no_exec', 'budget'):
             with self.subTest(case=case), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
@@ -69,8 +77,8 @@ class UnpackFirmwareTests(unittest.TestCase):
                                          '--output', str(output), '--max-unpacked-gib',
                                          '0' if case == 'budget' else '1'],
                                         capture_output=True, text=True, timeout=10)
-                self.assertEqual(result.returncode == 0, case == 'good', result.stdout + result.stderr)
-                if case == 'good':
+                self.assertEqual(result.returncode == 0, case in ('good', 'good_link'), result.stdout + result.stderr)
+                if case in ('good', 'good_link'):
                     self.assertEqual((output / 'system.img').read_bytes(), b'fake image')
                     self.assertTrue((output / 'bin/launch_cvd').stat().st_mode & 0o100)
                 else:
