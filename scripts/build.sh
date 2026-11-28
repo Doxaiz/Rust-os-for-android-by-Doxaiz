@@ -72,6 +72,23 @@ echo "=== envsetup + lunch + m ==="
 # shellcheck disable=SC1091
 . build/envsetup.sh
 lunch "${LUNCH_TARGET}"
+
+echo "=== Проверяю выбранный продукт DoxaizOS ==="
+# Запрашиваем вычисленные Make-переменные, а не grep по исходникам:
+# наличие overlay на диске ещё не означает, что продукт его наследует.
+packages="$(build/soong/soong_ui.bash --dumpvar-mode PRODUCT_PACKAGES)"
+properties="$(build/soong/soong_ui.bash --dumpvar-mode PRODUCT_PROPERTY_OVERRIDES)"
+python3 - "$packages" "$properties" <<'PYPRODUCT'
+import sys
+packages = sys.argv[1].split()
+properties = sys.argv[2].split()
+if 'DoxaizLauncher' not in packages:
+    raise SystemExit('Ошибка: выбранный продукт не включает DoxaizLauncher; подключите doxaiz_base.mk')
+if 'ro.config.low_ram=true' not in properties or not any(
+        value.startswith('ro.doxaiz.version=') and value.split('=', 1)[1]
+        for value in properties):
+    raise SystemExit('Ошибка: в продукте нет low-RAM свойств/версии DoxaizOS; проверьте наследование doxaiz_base.mk')
+PYPRODUCT
 m -j"$(nproc)"
 
 echo "=== Готово. Артефакты: ${TREE}/out/target/product/ ==="

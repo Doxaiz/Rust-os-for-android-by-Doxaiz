@@ -249,3 +249,11 @@ python3 -m unittest discover -s scripts/tests -v
 
 * [Документация repo: Local Manifests](https://github.com/aosp-mirror/tools_repo/blob/main/docs/manifest-format.md) — расположение `.repo/local_manifests/*.xml` и расширение основного манифеста.
 * [LineageOS getting started (lineage-23.0)](https://github.com/LineageOS/android/blob/lineage-23.0/README.mkdn) — разделение init и sync. Пример использован для понимания порядка, не как доказательство совместимости нашей ветки или модели телефона.
+
+### Защита от случайной сборки обычного Android
+
+После `lunch` и **до** `m` скрипт `build.sh` запрашивает через `build/soong/soong_ui.bash --dumpvar-mode` вычисленные `PRODUCT_PACKAGES` и `PRODUCT_PROPERTY_OVERRIDES`. Требуются точное имя модуля `DoxaizLauncher`, `ro.config.low_ram=true` и непустая `ro.doxaiz.version`. При отсутствии или ошибке dumpvar сборка останавливается. Одного копирования overlay в `vendor/doxaiz` недостаточно — выбранный продукт должен наследовать `doxaiz_base.mk`.
+
+Механика dumpvar сверена с [LineageOS envsetup.sh (lineage-23.0)](https://github.com/LineageOS/android_build/blob/lineage-23.0/envsetup.sh), `_get_build_var_cached`, через GitHub API 2026-11-23. В современных ветках публичный `get_build_var` может быть отдельной командой, а не shell-функцией; обёртка использует непосредственно Soong UI.
+
+Проверка конфигурации не доказывает, что APK попал в конечный образ, свойства не были переопределены позднее или HOME работает. После сборки обязательны проверка артефактов и запуск по чеклисту. Дополнительные offline-сценарии проверяют отсутствие модуля (включая похожее имя), свойств и ошибку dumpvar с остановкой до `m`.

@@ -22,7 +22,28 @@ elif sys.argv[1] == 'sync':
     assert (root / '.repo/local_manifests/doxaiz.xml').is_file()
     if os.environ['BUILD_CASE'] == 'sync_failure':
         sys.exit(1)
-    (root / 'build').mkdir(exist_ok=True)
+    (root / 'build/soong').mkdir(parents=True, exist_ok=True)
+    soong = root / 'build/soong/soong_ui.bash'
+    soong.write_text('''
+#!/bin/bash
+[ "$BUILD_CASE" != dumpvar_failure ] || exit 1
+case "$2" in
+  PRODUCT_PACKAGES)
+    if [ "$BUILD_CASE" = missing_launcher ]; then
+      echo DoxaizLauncherFake
+    else
+      printf 'Settings\\nDoxaizLauncher SystemUI\\n'
+    fi ;;
+  PRODUCT_PROPERTY_OVERRIDES)
+    if [ "$BUILD_CASE" = missing_properties ]; then
+      echo ro.config.low_ram=false
+    else
+      echo ro.config.low_ram=true ro.doxaiz.version=0.1.0
+    fi ;;
+  *) exit 2 ;;
+esac
+'''.lstrip())
+    soong.chmod(0o755)
     (root / 'build/envsetup.sh').write_text('''
 function lunch() {
     echo "lunch $*" >> "$BUILD_CALLS"
@@ -41,7 +62,8 @@ else:
 class BuildTests(unittest.TestCase):
     def test_orchestration(self):
         for mode in ('relative', 'absolute', 'existing_tree', 'sync_failure',
-                     'lunch_failure', 'build_failure'):
+                     'lunch_failure', 'build_failure', 'missing_launcher',
+                     'missing_properties', 'dumpvar_failure'):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory(prefix='build test ') as tmp:
                 root = Path(tmp)
                 bindir = root / 'bin'
@@ -80,7 +102,8 @@ class BuildTests(unittest.TestCase):
                     self.assertFalse((tree / 'android tree').exists())
                 else:
                     self.assertNotIn('=== Готово.', result.stdout)
-                if mode in ('sync_failure', 'lunch_failure'):
+                if mode in ('sync_failure', 'lunch_failure', 'missing_launcher',
+                            'missing_properties', 'dumpvar_failure'):
                     self.assertFalse(any(line.startswith('m ') for line in trace))
 
 
