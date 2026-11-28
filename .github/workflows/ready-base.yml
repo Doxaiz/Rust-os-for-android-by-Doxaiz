@@ -35,6 +35,7 @@ jobs:
           file='lineage-21.0-20261109-UNOFFICIAL-a64_bvN.img.gz'
           obtained=false
           for url in \
+            "https://sourceforge.net/projects/andyyan-gsi/files/lineage-21-pre-qpr2-td/$file/download" \
             "https://downloads.sourceforge.net/project/andyyan-gsi/lineage-21-pre-qpr2-td/$file" \
             "https://master.dl.sourceforge.net/project/andyyan-gsi/lineage-21-pre-qpr2-td/$file?viasf=1"; do
             rm -f reports/ready-base/candidate.img.gz.part
