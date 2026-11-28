@@ -234,3 +234,12 @@ Reference wrapper теперь вызывает тот же общий код и
 Обнаружен недостаток самого эксперимента: до reboot проверялся foreground provisioned secondary user, после reboot — только `am start-user`, то есть возможно фоновый/ещё не разблокированный user. Обновлённый контроль сохраняет resolve/role до foregrounding, затем явно переключается в того же пользователя, снимает keyguard и ограниченно наблюдает resolve (45 с), сохраняя историю и preferred/role. **HOME повторно не назначается.** Потеря выбора по истечении ожидания остаётся FAIL. Это проверяемая гипотеза об условиях теста, не доказанная причина старого отказа. Source-патч Launcher3 по-прежнему не собран.
 
 Offline fixture покрывает отдельный случай background-user chooser → исходный выбор после foregrounding и проверяет ровно два назначения на весь успешный эксперимент (по одному на Doxaiz и stock); lost-choice case остаётся отказом с одним назначением. Эти synthetic результаты не подтверждают поведение Android.
+
+
+### Подтверждённый реальный прогон нового lifecycle
+
+[Run 46155232856](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/runs/46155232856), commit c918520: **completed / SUCCESS**, job 141010318682. Через GitHub API и `gh run watch --exit-status` подтверждены успешные шаги **Boot reference AOSP firmware and test reboot/persistence** и **Real STOCK rejection through own-bundle boot path**. Для первого шага workflow явно задаёт 2048 МБ, 2 CPU, включает новый общий lifecycle. Значит, новая последовательность UUID/boot_count/marker/SELinux/services действительно выполнена на эталонном Android, а не только на mock.
+
+Stock negative control также SUCCESS: это ожидаемое отклонение стокового образа, **не положительная приёмка DoxaizOS**. Точные UUID, значения boot_count, PSI/ZRAM и сырой отчёт здесь не переписываются: загрузка artifact `cuttlefish-reference-46155232856` завершилась EOF на внешнем artifact storage. Итог workflow подтверждён API; содержимое artifact локально не проверено. Не делать из SUCCESS вывода о соблюдении memory budget или улучшении скорости.
+
+Готовность остаётся **25–30%**: реальная бесплатная лаборатория и общий lifecycle подтверждены, но собственный системный образ не собран. HOME-контроль новой редакции c2e8ba1 запрошен push-trigger, его итог пока отдельно не подтверждён.
