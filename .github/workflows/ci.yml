@@ -112,3 +112,46 @@ jobs:
           print('APK валиден:', os.path.basename(apk),
                 f'({os.path.getsize(apk)/1e6:.1f} МБ)')
           EOF
+
+  android-emulator:
+    name: Android Emulator (API 29, 2 GB, Launcher HOME)
+    # Run once per push, not again for the same PR head. Fork PRs do not run it.
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and verify released launcher
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DOXAIZ_ALLOW_UNVERIFIED_APK: '0'
+        run: bash scripts/fetch-launcher-apk.sh
+      - name: Enable KVM for disposable emulator
+        run: |
+          test -e /dev/kvm
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Boot Android and test actual launcher
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2, pinned
+        with:
+          api-level: 29
+          target: default
+          arch: x86_64
+          cores: 2
+          ram-size: 2048M
+          heap-size: 256M
+          emulator-boot-timeout: 600
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
+          script: bash scripts/emulator-smoke.sh overlay/vendor/doxaiz/apps/DoxaizLauncher/DoxaizLauncher.apk reports/emulator-api29
+      - name: Save emulator evidence (not a firmware release)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: android-emulator-api29-${{ github.run_id }}
+          path: reports/emulator-api29/
+          if-no-files-found: warn
+          retention-days: 7
