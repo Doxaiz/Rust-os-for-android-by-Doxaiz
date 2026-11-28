@@ -5,13 +5,17 @@
 # DoxaizOS
 
 **Самая лёгкая мобильная ОС для Android-телефонов: минимум ос, максимум свободной памяти.**
-Android-база (LineageOS/AOSP slim) · low-RAM профиль в духе Android Go · рабочий стол — [Doxaiz Launcher](https://github.com/Doxaiz/Doxaiz-android-launcher-) · весь новый системный код — на Rust · **поставляется как GSI: ставится на любой телефон с Project Treble (Android 8+)**.
+Android-база (LineageOS/AOSP slim) · low-RAM профиль в духе Android Go · рабочий стол — [Doxaiz Launcher](https://github.com/Doxaiz/Doxaiz-android-launcher-) · весь новый системный код — на Rust · **планируется GSI-поставка для совместимых устройств; готового проверенного образа пока нет**.
 
 [![CI](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/workflows/ci.yml/badge.svg)](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/workflows/ci.yml)
 [![Лицензия](https://img.shields.io/badge/лицензия-MIT-blue)](LICENSE)
 [![База](https://img.shields.io/badge/AOSP-17%20(LineageOS%2024.0)-3ddc84?logo=android&logoColor=white)](docs/BUILD.md)
 
 </div>
+
+## Проверенный текущий результат
+
+**Оценка готовности к рабочему релизу: ~30–35% (субъективная).** Релизный Launcher успешно установлен и открыт как HOME на Android Emulator API 29 / x86_64 / 2 ГБ RAM. [CI-доказательство и ограничения](docs/EMULATOR-RESULT.md). Это не загрузка DoxaizOS и не подтверждение работы на Redmi 9A; прошивочного образа пока нет.
 
 ## Зачем
 
@@ -26,13 +30,13 @@ Android-база (LineageOS/AOSP slim) · low-RAM профиль в духе And
 | Холодный старт HOME | ≤ 400 мс |
 | Размер system-образа | ≤ 2,5 ГБ |
 
-> Честно: это цели, подтверждённые замерами на Cuttlefish/железе, а не маркетинг. Первая проверка — на Cuttlefish, затем на реальном устройстве ([docs/ROADMAP.md](docs/ROADMAP.md)).
+> Честно: это цели, ещё НЕ подтверждённые замерами DoxaizOS на Cuttlefish/железе. Первая проверка — на Cuttlefish, затем на реальном устройстве ([docs/ROADMAP.md](docs/ROADMAP.md)).
 
 ## Быстрый старт
 
 1. **Сборка образа** (нужен ПК, ≥ 250 ГБ SSD, Linux x86_64):
    [docs/BUILD.md](docs/BUILD.md) — от `repo init` до `launch_cvd` и `adb install`.
-2. **Поставить на ЛЮБОЙ телефон** (Project Treble, Android 8+): [docs/GSI.md](docs/GSI.md) — GSI-сборка `lunch doxaiz_arm64-userdebug`, прошивка через fastboot, безопасный тест через DSU.
+2. **План GSI для совместимых устройств** (Treble сам по себе недостаточен): [docs/GSI.md](docs/GSI.md) — GSI-сборка `lunch doxaiz_arm64-userdebug`, прошивка через fastboot, безопасный тест через DSU.
 3. **Что внутри и почему так**: [docs/RESEARCH.md](docs/RESEARCH.md) (исследование, источники) и [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 4. **Лаунчер как HOME**: [docs/LAUNCHER.md](docs/LAUNCHER.md).
 5. **Список этапов работ**: [docs/ROADMAP.md](docs/ROADMAP.md). Честный статус готовности: [docs/STATUS.md](docs/STATUS.md).
