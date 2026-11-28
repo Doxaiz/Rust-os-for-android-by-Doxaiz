@@ -250,3 +250,15 @@ Stock negative control также SUCCESS: это ожидаемое откло�
 В `scripts/build.sh` добавлен обязательный source-evidence этап после наложения overlay/HOME patch/проверки APK и до lunch/m. Раньше документация требовала ручной `repo diff`, без которого pinned manifest терял локальную правку Launcher3. Теперь manifest -r и diff сохраняются автоматически в новом каталоге вне out/, вместе с lunch target, Doxaiz commit/worktree status и хешами manifest/diff/APK. Manifest с branch-name вместо SHA, ошибка repo manifest/diff или hash capture не пропускают запуск m. EXIT-отчёт отдельно фиксирует nonzero и фазу отказа; неудачная компиляция не превращается в успешный отчёт происхождения.
 
 Это уменьшает риск потерять source patch при передаче сборки, но **не** решает нехватку build-хоста, не создаёт образы, не архивирует все untracked inputs и не связывает криптографически images/target-files/tools. Полный log и дополнительные inputs надо сохранять отдельно. Новый этап проверен только fake-repo/envsetup fixtures: успешные пути, unpinned manifest, manifest/diff failures и сохранение nonzero статуса. Собственной компиляции по-прежнему нет.
+
+
+### Результат проверки foreground-гипотезы: она недостаточна
+
+[Run 46155735023](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/runs/46155735023), check-run 141011859114, новая редакция c2e8ba1: **FAILURE**. Через annotations получены наблюдения после первой перезагрузки:
+
+* `doxaiz-choice-background-home.txt`: `com.android.settings/.FallbackHome`.
+* `doxaiz-choice-background-role.txt` и `doxaiz-choice-foreground-role.txt`: **оба содержат `com.doxaiz.launcher`**.
+* После успешного start-user и переключения foreground история resolve на протяжении ограниченного ожидания содержит `android/com.android.internal.app.ResolverActivity`, не Doxaiz HOME.
+* В preferred dump по-прежнему видна запись Provision; это наблюдение, не доказанная причина.
+
+Следовательно, одной смены foreground-контекста/ожидания недостаточно. Более точная формулировка: **HOME role-holder пережил reboot, но фактический resolve HOME не соответствует ему**. Нельзя утверждать ни «роль потеряна», ни «выбор полностью сохранился». Stock-choice фаза не достигнута; положительного теста source-патча Launcher3 по-прежнему нет. Нельзя ослаблять own-firmware gate до проверки одного role-holder: фактический resolve остаётся обязательным. Следующее исследование должно разделить RoleManager holder, preferred activity и набор включённых HOME-компонентов после reboot, а не повторно назначать HOME для зелёного результата.
