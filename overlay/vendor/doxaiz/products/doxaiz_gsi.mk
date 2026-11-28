@@ -1,4 +1,5 @@
-# DoxaizOS-GSI — универсальный system.img для ЛЮБОГО устройства с Project Treble.
+# DoxaizOS-GSI — system.img для совместимых ARM64 Treble-устройств.
+# ARM32-binder64/A64 (возможный случай Redmi 9A) этим таргетом не покрывается.
 #
 # Подключается через vendor/doxaiz/AndroidProducts.mk (см. этот же каталог):
 #   lunch doxaiz_arm64-userdebug
