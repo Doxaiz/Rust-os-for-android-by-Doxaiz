@@ -61,4 +61,5 @@ PRODUCT_PROPERTY_OVERRIDES += \
 # как privileged-приложение (LOCAL_CERTIFICATE := platform). Для режима
 # PRESIGNED из комплекта overlay allowlist не нужен, файл безобиден.
 PRODUCT_COPY_FILES += \
-    vendor/doxaiz/etc/privapp-permissions-doxaiz.xml:$(TARGET_COPY_OUT_SYSTEM)/etc/permissions/privapp-permissions-doxaiz.xml
+    vendor/doxaiz/etc/privapp-permissions-doxaiz.xml:$(TARGET_COPY_OUT_SYSTEM)/etc/permissions/privapp-permissions-doxaiz.xml \
+    vendor/doxaiz/etc/preferred-apps/doxaiz-home.xml:$(TARGET_COPY_OUT_SYSTEM)/etc/preferred-apps/doxaiz-home.xml

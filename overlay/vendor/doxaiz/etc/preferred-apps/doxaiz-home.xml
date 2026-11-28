@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Initial preference for a NEW user, not a persistent/default-home lock.
+     Settings.applyDefaultPreferredAppsLPw reads system/etc/preferred-apps.
+     Keep the platform launcher/Quickstep installed for fallback and recents.
+     Existing user choice is not overwritten by an init/ADB service. -->
+<preferred-activities>
+    <item name="com.doxaiz.launcher/com.doxaiz.launcher.MainActivity">
+        <filter>
+            <action name="android.intent.action.MAIN" />
+            <cat name="android.intent.category.HOME" />
+            <cat name="android.intent.category.DEFAULT" />
+        </filter>
+    </item>
+</preferred-activities>

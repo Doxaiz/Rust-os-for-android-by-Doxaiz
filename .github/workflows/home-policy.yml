@@ -1,0 +1,57 @@
+name: HOME policy integration (modified stock, NOT DoxaizOS)
+
+on:
+  push:
+    branches: ['arena/**', main]
+    paths:
+      - '.github/workflows/home-policy.yml'
+      - 'scripts/test-home-policy.sh'
+      - 'overlay/vendor/doxaiz/etc/preferred-apps/doxaiz-home.xml'
+
+permissions:
+  contents: read
+
+jobs:
+  home-policy:
+    if: github.event.repository.private == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test initial HOME policy and user-choice persistence on disposable AOSP
+        uses: marcprux/cuttlefish-runner@3e65049fd8a2c2745eb41dca3431680be5d5ebbd
+        env:
+          GH_TOKEN: ${{ github.token }}
+        with:
+          target: aosp_cf_x86_64_only_phone-userdebug
+          memory-mb: '2048'
+          cpus: '2'
+          cache: 'false'
+          boot-timeout: '900'
+          disable-animations: 'false'
+          script: bash scripts/test-home-policy.sh
+      - name: Report precise experiment outcome
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os, pathlib
+          root = pathlib.Path('reports/home-policy')
+          result = root / 'result.txt'
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as stream:
+              stream.write('## HOME policy on MODIFIED STOCK AOSP — NOT a DoxaizOS build\n')
+              stream.write(result.read_text() if result.exists() else 'No successful integration result.\n')
+          if not result.exists():
+              for path in sorted(root.glob('*.txt')):
+                  if path.name == 'logcat.txt':
+                      continue
+                  text = path.read_text(errors='replace')[-1000:]
+                  text = text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+                  print(f'::error title=HOME experiment {path.name}::{text}')
+          PY
+      - name: Keep integration evidence (no APK/images)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: home-policy-${{ github.run_id }}
+          path: reports/home-policy/
+          retention-days: 7
