@@ -30,10 +30,24 @@ jobs:
           mkdir -m 700 -p reports/ready-base
           # Fixed upstream path. No secrets, root, mounts, image execution or flash.
           # Publisher hash/signature is NOT independently known: this is quarantine.
-          curl --fail --location --proto '=https' --proto-redir '=https' \
-            --connect-timeout 20 --max-time 900 --max-filesize 2147483648 \
-            --output reports/ready-base/candidate.img.gz.part \
-            'https://sourceforge.net/projects/andyyan-gsi/files/lineage-21-pre-qpr2-td/lineage-21.0-20261109-UNOFFICIAL-a64_bvN.img.gz/download'
+          # A mirror stalled for the full 900 s in run 46160483273.
+          # Bound each attempt and switch transport route, NEVER candidate/version.
+          file='lineage-21.0-20261109-UNOFFICIAL-a64_bvN.img.gz'
+          obtained=false
+          for url in \
+            "https://downloads.sourceforge.net/project/andyyan-gsi/lineage-21-pre-qpr2-td/$file" \
+            "https://master.dl.sourceforge.net/project/andyyan-gsi/lineage-21-pre-qpr2-td/$file?viasf=1"; do
+            rm -f reports/ready-base/candidate.img.gz.part
+            if curl --fail --location --proto '=https' --proto-redir '=https' \
+              --connect-timeout 15 --max-time 180 --speed-limit 65536 --speed-time 30 \
+              --max-filesize 2147483648 --output reports/ready-base/candidate.img.gz.part "$url"; then
+              obtained=true
+              break
+            fi
+          done
+          [ "$obtained" = true ]
+          # Continuity pin only, NOT independent publisher authentication.
+          echo '7000876dee2b0f6f0814431626c495b0f254b00456c88964dee2a68473b3b146  reports/ready-base/candidate.img.gz.part' | sha256sum -c -
           mv reports/ready-base/candidate.img.gz.part reports/ready-base/candidate.img.gz
       - name: Audit compressed stream and header, NOT integrity attestation or compatibility
         run: |

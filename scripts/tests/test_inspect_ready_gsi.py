@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 from pathlib import Path
 import subprocess
+import shutil
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -55,6 +56,33 @@ class InspectGSITests(unittest.TestCase):
                     debugfs.assert_not_called()
                 with self.assertRaises(ValueError):
                     module.inspect(image, expected, root / 'report')
+
+    @unittest.skipUnless(shutil.which('debugfs') and shutil.which('mkfs.ext4'),
+                         'host e2fsprogs unavailable; real ext4 fixture NOT tested here')
+    def test_real_ext4_fixture_without_mount(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            tree = root / 'tree'
+            (tree / 'system/bin').mkdir(parents=True)
+            (tree / 'system/build.prop').write_text('ro.build.version.sdk=34\nro.build.version.security_patch=2026-11-01\n')
+            elf = bytearray(20)
+            elf[:6] = b'\x7fELF\x01\x01'
+            elf[18:20] = (40).to_bytes(2, 'little')
+            (tree / 'system/bin/app_process32').write_bytes(elf)
+            raw = root / 'fixture.raw'
+            with raw.open('wb') as stream:
+                stream.truncate(16 * 1024**2)
+            subprocess.run(['mkfs.ext4', '-q', '-F', '-d', str(tree), str(raw)], check=True,
+                           capture_output=True, timeout=20)
+            image = root / 'fixture.gz'
+            with raw.open('rb') as source, gzip.open(image, 'wb') as dest:
+                shutil.copyfileobj(source, dest)
+            expected = hashlib.sha256(image.read_bytes()).hexdigest()
+            result = module.inspect(image, expected, root / 'report', maximum=32 * 1024**2)
+            self.assertTrue(result['passed'], result)
+            self.assertEqual(result['properties_by_path']['/system/build.prop']['ro.build.version.sdk'], '34')
+            self.assertEqual(result['elf_by_path']['/system/bin/app_process32']['class_bits'], 32)
+            self.assertFalse(result['boot_tested'])
 
     def test_debugfs_readonly_command(self):
         with tempfile.TemporaryDirectory() as tmp:
