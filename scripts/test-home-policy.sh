@@ -23,6 +23,7 @@ cleanup() {
     trap - EXIT
     adb_cmd logcat -d -t 500 > "$report/logcat.txt" 2>&1 || true
     if [ -n "$user_id" ]; then
+        timeout 90s adb -s "$serial" shell am switch-user -w 0 > "$report/return-user.txt" 2>&1 || true
         adb_cmd shell am stop-user -w -f "$user_id" > "$report/stop-user.txt" 2>&1 || true
         adb_cmd shell pm remove-user "$user_id" > "$report/remove-user.txt" 2>&1 || true
     fi
@@ -95,6 +96,20 @@ adb_cmd shell pm create-user DoxaizHomePolicyTest > "$report/create-user.txt"
 user_id="$(sed -n 's/.*created user id \([0-9][0-9]*\).*/\1/p' "$report/create-user.txt" | tr -d '\r')"
 [[ "$user_id" =~ ^[0-9]+$ ]] && [ "$user_id" -gt 0 ]
 adb_cmd shell am start-user -w "$user_id" > "$report/start-user.txt"
+# A fresh background user still resolves to Provision by design. Exercise
+# normal foreground provisioning; never disable SetupWizard or write its
+# completion settings to force the policy test to pass.
+timeout 90s adb -s "$serial" shell am switch-user -w "$user_id" > "$report/switch-user.txt"
+adb_cmd shell wm dismiss-keyguard > "$report/unlock-user.txt"
+adb_cmd shell am start --user "$user_id" -W -a android.intent.action.MAIN \
+    -c android.intent.category.HOME > "$report/start-home.txt"
+deadline=$((SECONDS + 90))
+while :; do
+    complete="$(adb_cmd shell settings --user "$user_id" get secure user_setup_complete | tr -d '\r\n')"
+    [ "$complete" = 1 ] && break
+    [ "$SECONDS" -lt "$deadline" ] || { echo 'New user provisioning did not complete' >&2; exit 1; }
+    sleep 3
+done
 resolve_home() {
     adb_cmd shell cmd package resolve-activity --user "$user_id" --brief \
         -a android.intent.action.MAIN -c android.intent.category.HOME | tr -d '\r' | tail -n 1

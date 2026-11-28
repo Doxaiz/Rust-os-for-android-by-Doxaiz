@@ -27,6 +27,8 @@ if args[:2] == ['shell', 'getprop']:
            'sys.boot_completed': '1'}[args[2]])
 elif args == ['shell', 'id', '-u']: print('0')
 elif args == ['shell', 'settings', 'get', 'global', 'boot_count']: print(count)
+elif args[:3] == ['shell', 'settings', '--user']: print('1')
+elif args[:2] == ['shell', 'wm']: pass
 elif args == ['reboot']: count_file.write_text(str(count + 1))
 elif args == ['root'] or args == ['disable-verity']: print('mock ok')
 elif args == ['remount']:
