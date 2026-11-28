@@ -26,13 +26,36 @@ adb shell cmd package set-home-activity com.doxaiz.launcher/.MainActivity
 # на ряде сборок команда отсутствует → просто жмите «Домой» и выберите Doxaiz
 ```
 
+### Начальный HOME: реальная ошибка и текущий кандидат исправления
+
+**XML preferred-apps сам по себе не решил задачу.** Это проверено на настоящем stock Cuttlefish, а не предположено по старым примерам. В [run 46152244933](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/runs/46152244933) системный Doxaiz APK и `/system/etc/preferred-apps/doxaiz-home.xml` присутствовали; после нормального provisioning свежего пользователя HOME оставался `android/com.android.internal.app.ResolverActivity`. В списке кандидатов Doxaiz и Launcher3 имели priority=0, Settings FallbackHome — -1000; HOME role holder отсутствовал. Полная причина взаимодействия preferred records/Provision/RoleController пока не доказана. Поэтому XML **убран из PRODUCT_COPY_FILES**, exporter не требует его. Он оставлен только как вход отрицательного эксперимента.
+
+В LineageOS 24.0 Settings.applyDefaultPreferredAppsLPw/readDefaultPreferredActivitiesLPw действительно читает `etc/preferred-apps/*.xml`. Но поддержка синтаксиса ещё не доказывает корректный начальный HOME после настройки. HomeRoleBehavior выбирает fallback по приоритету; при равном приоритете нескольких launcher единственный пакет не выбирается. У текущего HOME role нет defaultHolders-ресурса: выдуманный `config_defaultHome` в overlay сам по себе не поможет.
+
+Кандидат исправления для **нашего Cuttlefish source build**: `patches/lineage-24.0/launcher3-home-fallback.patch` понижает только HOME intent-filter штатного Launcher3/Quickstep до **-1** в двух manifest-файлах. Наш существующий Doxaiz APK остаётся неизменным/PRESIGNED с приоритетом 0. Launcher3/Quickstep не удаляется: остаётся запасной HOME и сервис recents. Это даёт уникальный fallback по прочитанному алгоритму, но **положительная загрузка пересобранной системы ещё не проверена**.
+
+`scripts/build.sh` вызывает `apply-home-fallback-patch.sh` только для doxaiz_cf_x86_64_phone. Helper делает forward/reverse git-apply checks, проверяет итоговый XML и отказывает при несовместимом upstream вместо тихого пропуска. Применение и повторная идемпотентная проверка выполнены на настоящих исходниках Launcher3 commit `3e0e4f1955992788768547ae2c4115537bc957a6`; это проверка source patch, не компиляция приложения. Для GSI/per-device с другими launchers автоматический перенос **не обещается**. При переносе нужны отдельная интеграция начального HOME и проверка пользовательского выбора.
+
+Первое разрешение HOME у свежего пользователя может вести в `com.android.provision/.DefaultActivity`: штатный AOSP Provision выставляет provisioning state и отключает собственную Activity. Нельзя обходить его ручной записью user_setup_complete или отключением pm ради зелёного теста. Начальный HOME проверяется после нормального provisioning/unlock.
+
+`home-policy.yml` теперь хранит **отрицательный контроль**: overlayfs + исходный проверенный APK в /system/app + экспериментальный XML; свежий пользователь, normal provisioning, затем подтверждение chooser/tie/no role holder. После этого отдельные тестовые команды имитируют явный выбор Doxaiz и stock HOME, пытаясь проверить сохранение каждого выбора через reboot. Эти проверки пока не подтверждены успешным финальным run: последний статус не удалось получить из-за лимита GitHub API (подробности FIRMWARE-LAB.md). Это **не проверка работоспособности source patch**: stock Launcher3 в данном опыте не пересобран. Green этого job означает воспроизведение отвергнутого XML-подхода и проверку сохранности явного выбора, не «начальный HOME исправлен».
+
+Изменение HOME командой допускается только для имитации пользовательского действия в этом эксперименте; boot-firmware-bundle/check-firmware по-прежнему не присваивает HOME. Нет init-сервиса, persistent-preferred-activity или команды, возвращающей наш HOME при каждой загрузке.
+
+Источники, прочитанные перед изменением:
+
+* Settings.java (LineageOS snapshot `7d9b4820ef6ac0d72dfd1616094f53b18726e7fe`): https://github.com/LineageOS/android_frameworks_base/blob/7d9b4820ef6ac0d72dfd1616094f53b18726e7fe/services/core/java/com/android/server/pm/Settings.java
+* PreferredComponent.java: https://github.com/LineageOS/android_frameworks_base/blob/7d9b4820ef6ac0d72dfd1616094f53b18726e7fe/services/core/java/com/android/server/pm/PreferredComponent.java
+* HomeRoleBehavior (Permission snapshot `cdbbb94284627e3876c1c5a5591c619d3687de7b`): https://github.com/LineageOS/android_packages_modules_Permission/blob/cdbbb94284627e3876c1c5a5591c619d3687de7b/PermissionController/role-controller/java/com/android/role/controller/behavior/HomeRoleBehavior.java
+* AOSP Provision: https://android.googlesource.com/platform/packages/apps/Provision/+/refs/tags/android-17.0.0_r1/src/com/android/provision/DefaultActivity.java
+
 ## 2. Как приложение попадает в образ
 
 1. `scripts/fetch-launcher-apk.sh` скачивает последний релизный APK (и проверяет его sha256 по `apk-sha256.txt` из того же релиза; несовпадение = hard fail) из [Doxaiz-android-launcher-/releases](https://github.com/Doxaiz/Doxaiz-android-launcher-/releases) в `overlay/vendor/doxaiz/apps/DoxaizLauncher/DoxaizLauncher.apk` (или прямо в дерево AOSP, если передать путь).
 2. `scripts/apply-overlay.sh` копирует overlay в дерево как `vendor/doxaiz`.
 3. `vendor/doxaiz/products/doxaiz_base.mk` добавляет `DoxaizLauncher` в `PRODUCT_PACKAGES`.
 4. `vendor/doxaiz/apps/DoxaizLauncher/Android.mk` — модуль `prebuilt_app` (`BUILD_PREBUILT`), по умолчанию в режиме `PRESIGNED`.
-5. В `*_userdebug`-образе после загрузки система видит лаунчер как установленное приложение и назначаемое приложение по умолчанию для HOME.
+5. Для своего Cuttlefish-продукта build.sh применяет source patch начального fallback; работоспособность выбора проверяется только после настоящей сборки. Экспериментальный XML в продукт не копируется.
 
 ## 3. Режимы подписи
 

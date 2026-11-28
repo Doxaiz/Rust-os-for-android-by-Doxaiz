@@ -1,6 +1,6 @@
 # Производительность DoxaizOS на 2 ГБ ОЗУ
 
-Цель: максимум отзывчивости при жёстком потолке памяти и минимальное фоновое потребление. Всё нижеперечисленное — рабочие приёмы Android Go/low-RAM, применённые к DoxaizOS; **каждое** изменение калибруется замерами на Cuttlefish и затем на железе.
+Цель: максимум отзывчивости при жёстком потолке памяти и минимальное фоновое потребление. Ниже разделены настройки исходного overlay и рекомендации для ещё не собранного образа. Наличие строки в репозитории не доказывает её применение во время загрузки; **каждое** изменение требует замеров на своей сборке Cuttlefish и затем на железе.
 
 ## 1. Что уже включено в overlay DoxaizOS
 
@@ -8,7 +8,7 @@
 
 ```
 ro.config.low_ram=true          # low-RAM режим фреймворка и lmkd
-ro.setupwizard.mode=OPTIONAL    # без Google-мастера настройки
+ro.setupwizard.mode=OPTIONAL    # не отключает штатный AOSP Provision
 dalvik.vm.heapstartsize=8m
 dalvik.vm.heapgrowthlimit=96m
 dalvik.vm.heapsize=256m
@@ -29,7 +29,9 @@ cargo test --workspace
 
 ## 2. ZRAM (swap в сжатом ОЗУ)
 
-На 2 ГБ zram важнее любых sysctl: холодные страницы приложений сжимаются zstd и не уходят на флеш.
+ZRAM хранит выгруженные страницы в сжатом виде в ОЗУ; реальная экономия и CPU-затраты зависят от содержимого и алгоритма. **Overlay пока не включает/не настраивает ZRAM сам**: это vendor/kernel/fstab-конфигурация конкретного продукта. Профиль Rust 50% — расчётная рекомендация, не доказательство активного swap.
+
+У наследуемого Cuttlefish android-17.0.0_r1 `shared/config/fstab.in` уже задано **zramsize=75%**, а не наши планировочные 50%: https://android.googlesource.com/device/google/cuttlefish/+/refs/tags/android-17.0.0_r1/shared/config/fstab.in . Пока не подменяем vendor fstab ради совпадения цифры: сначала нужны /proc/swaps, disksize, mm_stat, comp_algorithm и PSI-замеры на собственной сборке. GSI не получает право менять vendor fstab Redmi автоматически.
 
 В `fstab` устройства (например, `device/<vendor>/<model>/*.fstab` или `rootdir/fstab.*`) добавьте/проверьте строку:
 
@@ -41,7 +43,7 @@ cargo test --workspace
 Проверка на устройстве:
 
 ```bash
-adb shell cat /sys/block/zram0/comp_algorithm   # ожидание: lzo-rle [zstd]
+adb shell cat /sys/block/zram0/comp_algorithm   # активный алгоритм указан в [скобках]; zstd не гарантирован
 adb shell cat /proc/swaps
 ```
 
@@ -49,7 +51,7 @@ adb shell cat /proc/swaps
 
 ## 3. lmkd (lowmemorykiller daemon) — когда и как выгружать приложения
 
-Android с ядра 4.12 не использует in-kernel LMK driver; вместо него — `lmkd` в юзерспейсе. С Android 10 он работает в режиме **PSI** (Pressure Stall Information): ядро компилируется с `CONFIG_PSI=y`, а low-RAM требует ещё **memory cgroups** и **PIDFD** ([исходники lmkd](https://android.googlesource.com/platform/system/memory/lmkd/+/master/README.md)).
+Современный AOSP использует `lmkd` в userspace; поведение старого vendor-ядра нельзя вывести только из номера версии. PSI-режим (Pressure Stall Information) требует поддержки ядром, включая `CONFIG_PSI=y`; требования memory cgroups/PIDFD сверяются для выбранной ветки ([исходники lmkd](https://android.googlesource.com/platform/system/memory/lmkd/+/master/README.md)).
 
 `ro.config.low_ram=true` (наш случай) переключает lmkd на философию «система должна терпеть более высокое давление памяти как нормальный режим» ([source.android.com, lmkd](https://source.android.com/docs/core/perf/lmkd)). Точные дефолты low-RAM vs high-performance (таблица «Configure lmkd in Android 11» официального документа) **уже зафиксированы в overlay** `vendor/doxaiz/products/doxaiz_base.mk`:
 
@@ -75,7 +77,7 @@ Android с ядра 4.12 не использует in-kernel LMK driver; вме�
 
 ## 4. F2FS и файловая система
 
-* `/data` и `/cache` на F2FS (не ext4) на флеше — меньше GC-пауз, быстрее fsync (SQLite лаунчера заметно отзывчивее).
+* F2FS и ext4 сравнивать замерами fsync/GC на целевом накопителе. Не менять файловую систему/форматировать разделы телефона ради неподтверждённого обещания ускорения; `/cache` может отсутствовать.
 * `/system` и `/vendor` — только read-only (ext4/erofs + dm-verity).
 * `noatime` на `/data` — меньше метаданных записи.
 
@@ -88,7 +90,7 @@ Android с ядра 4.12 не использует in-kernel LMK driver; вме�
 ## 6. Отказ от Google-служб = самый большой выигрыш
 
 * Нет GMS → нет `com.google.android.gms` в фоне: обычно десятки процессов, сотни МБ ОЗУ и постоянная просыпалка ради push.
-* Нет SetupWizard → первый запуск сразу на HOME DoxaizOS.
+* Отсутствие Google SetupWizard не отменяет штатный AOSP Provision. Для нового пользователя сначала должен корректно завершиться provisioning, затем проверяется начальный HOME DoxaizOS.
 * Пользователь получает приложения через F-Droid/APK-файлы; подписанные приложения из Play при ручной установке работают как обычно (Play Services не обязательны для большинства приложений, кроме push/location в части из них).
 
 ## 7. Что вырезано на этапе синхронизации
@@ -207,3 +209,8 @@ bash scripts/collect-device.sh SERIAL reports/stock-001 --stock
 ```
 
 В этом режиме не вызываются pm/dumpsys для Doxaiz Launcher: сохраняются `meminfo.txt`, `storage.txt` (`df -k /data`) и `context.txt`. Контекст дополнен model/device, списками 32/64-bit ABI, Treble, vendor SDK/VNDK и несколькими boot-свойствами. Пустое свойство — неизвестное значение; эти строки не являются автоматическим заключением о совместимости GSI. Свободное место не доказывает исправность eMMC. Требования Linux, GNU coreutils, авторизованного ADB и загруженного Android сохраняются; установка приложений и разблокировка не нужны.
+
+
+### Примечание о PRESIGNED и dexpreopt
+
+В нашем Android.mk сейчас явно стоит LOCAL_DEX_PREOPT=false. Это **не ограничение PRESIGNED**: [app_prebuilt_internal.mk](https://github.com/LineageOS/android_build/blob/lineage-24.0/core/app_prebuilt_internal.mk) поддерживает dexpreopt без повторной подписи presigned APK. Отключение preopt может менять стоимость первой загрузки/первого старта и место под odex/vdex; без своей сборки и замеров нельзя объявлять его оптимизацией скорости или обещать экономию памяти. В этом изменении флаг не переключался — исправлен ошибочный комментарий о невозможности AOT.

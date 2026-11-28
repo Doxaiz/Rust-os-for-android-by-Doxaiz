@@ -21,8 +21,10 @@ LOCAL_MODULE_TAGS := optional
 
 # Подпись разработчика лаунчера, APK берём как есть.
 LOCAL_CERTIFICATE := PRESIGNED
-# Presigned APK декфировывается на целевом устройстве при первом старте;
-# AOT-прекомпиляция на хосте не применима.
+# Явно отключено на начальном этапе; это НЕ требование PRESIGNED.
+# app_prebuilt_internal.mk поддерживает dexpreopt без переподписи APK.
+# Оценить preopt отдельно по размеру образа/первой загрузке/холодному старту;
+# ускорение и память на нашей сборке пока не измерены.
 LOCAL_DEX_PREOPT := false
 
 LOCAL_SRC_FILES := DoxaizLauncher.apk

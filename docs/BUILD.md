@@ -128,6 +128,8 @@ m -j$(nproc)
 
 Продукт наследует проверенный исходник AOSP android-17.0.0_r1 `device/google/cuttlefish/vsoc_x86_64_only/phone/aosp_cf.mk`, сохраняя `PRODUCT_DEVICE=vsoc_x86_64_only`. У upstream включены игнорирование Android.mk и фиксированный Soong system image: просто добавить PRODUCT_PACKAGES недостаточно для нашего Make-prebuilt. Обёртка явно возвращает mixed Make/Soong сборку и отключает фиксированный system image. Проверены только наследование/переменные на GNU Make-фикстуре, не работоспособность Android-сборки. Release config `trunk_staging` взят из upstream AndroidProducts.mk; его совместимость с новым продуктом ещё надо проверить настоящим lunch.
 
+Перед сборкой `scripts/build.sh` для этого таргета применяет `scripts/apply-home-fallback-patch.sh`: HOME priority штатного Launcher3/Quickstep становится -1; неизменённый Doxaiz APK имеет 0. Сам Launcher3 и recents-сервис остаются. Helper проверен на точных исходниках LOS Launcher3 `3e0e4f1955992788768547ae2c4115537bc957a6`, не на настоящей компиляции. Если собираете вручную без build.sh, отдельно выполните `bash /path/to/repo/scripts/apply-home-fallback-patch.sh ~/doxaiz-os` перед lunch/m. При upstream drift helper отказывает; не обходите отказ без ревью. История отвергнутого XML-варианта и границы проверки — [LAUNCHER.md](LAUNCHER.md).
+
 Не заменяйте неработающий doxaiz target ближайшим stock target: так можно незаметно собрать чужую ОС без наших изменений.
 
 ### 8.2. Реальное устройство
@@ -263,7 +265,12 @@ python3 -m unittest discover -s scripts/tests -v
 
 ```bash
 repo manifest -r -o /absolute/path/repo-manifest.xml
+# Manifest не включает локальные source patches! Сохранить отдельно:
+repo diff > /absolute/path/source-diff.patch
+sha256sum /absolute/path/source-diff.patch
 ```
+
+Source diff и вывод SHA-256 apply-home-fallback-patch.sh сохранять рядом с полным build log. Текущий bundle автоматически не включает source-diff.patch: без отдельного сохранения локальные изменения Launcher3 не воспроизводятся по одному repo manifest -r. Хеш DoxaizOS commit фиксирует содержимое patch/helper, но не все сторонние изменения Android-дерева.
 
 Из репозитория DoxaizOS экспортируйте комплект (пути placeholders заменить реальными):
 
