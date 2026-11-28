@@ -96,6 +96,8 @@ adb_cmd shell pm create-user DoxaizHomePolicyTest > "$report/create-user.txt"
 user_id="$(sed -n 's/.*created user id \([0-9][0-9]*\).*/\1/p' "$report/create-user.txt" | tr -d '\r')"
 [[ "$user_id" =~ ^[0-9]+$ ]] && [ "$user_id" -gt 0 ]
 adb_cmd shell am start-user -w "$user_id" > "$report/start-user.txt"
+adb_cmd shell dumpsys package preferred > "$report/preferred-before-provision.txt"
+adb_cmd shell cat /system/etc/preferred-apps/doxaiz-home.xml > "$report/policy-on-device.txt"
 # A fresh background user still resolves to Provision by design. Exercise
 # normal foreground provisioning; never disable SetupWizard or write its
 # completion settings to force the policy test to pass.
@@ -115,6 +117,10 @@ resolve_home() {
         -a android.intent.action.MAIN -c android.intent.category.HOME | tr -d '\r' | tail -n 1
 }
 home="$(resolve_home)"
+adb_cmd shell dumpsys package preferred > "$report/preferred-after-provision.txt"
+adb_cmd shell cmd package query-activities --user "$user_id" --brief \
+    -a android.intent.action.MAIN -c android.intent.category.HOME > "$report/home-candidates.txt"
+adb_cmd shell cmd role get-role-holders --user "$user_id" android.app.role.HOME > "$report/home-role.txt"
 printf '%s\n' "$home" > "$report/initial-home.txt"
 [ "$home" = com.doxaiz.launcher/.MainActivity ] || [ "$home" = com.doxaiz.launcher/com.doxaiz.launcher.MainActivity ]
 # TEST-ONLY simulation of an explicit user choice. This is not used by the

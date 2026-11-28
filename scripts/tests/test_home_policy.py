@@ -29,6 +29,10 @@ elif args == ['shell', 'id', '-u']: print('0')
 elif args == ['shell', 'settings', 'get', 'global', 'boot_count']: print(count)
 elif args[:3] == ['shell', 'settings', '--user']: print('1')
 elif args[:2] == ['shell', 'wm']: pass
+elif args[:3] == ['shell', 'dumpsys', 'package']: print('mock preferences')
+elif args[:3] == ['shell', 'cmd', 'role']: print('com.doxaiz.launcher')
+elif args[:4] == ['shell', 'cmd', 'package', 'query-activities']: print('mock candidates')
+elif args[:2] == ['shell', 'cat']: print('mock XML')
 elif args == ['reboot']: count_file.write_text(str(count + 1))
 elif args == ['root'] or args == ['disable-verity']: print('mock ok')
 elif args == ['remount']:
