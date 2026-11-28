@@ -2,6 +2,8 @@
 //! Does not mount/modify an image, run image scripts, change ADB or flash a device.
 #![forbid(unsafe_code)]
 
+pub mod image;
+
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::Path;

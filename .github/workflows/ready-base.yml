@@ -79,6 +79,22 @@ jobs:
           (root / 'result.json').write_text(json.dumps(facts, indent=2) + '\n')
           print('::notice title=Rust remote patch prepared NOT applied::' + json.dumps(facts).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
           PY
+      - name: Experimental Rust edit of disposable image copy (NEVER flash or upload)
+        run: |
+          command -v e2fsck
+          python3 - <<'PY'
+          import shutil
+          if shutil.disk_usage('reports/ready-base').free < 2 * 1815896064 + 1024**3:
+              raise SystemExit('Not enough disk for two disposable raw images')
+          PY
+          gzip -dc reports/ready-base/candidate.img.gz > reports/ready-base/original.raw
+          cargo run --release --manifest-path core/Cargo.toml -p doxaiz-hardening --bin doxaiz-experiment-image -- \
+            --allow-unbooted-experiment reports/ready-base/original.raw reports/ready-base/image-experiment
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path('reports/ready-base/image-experiment/result.txt').read_text()
+          print('::notice title=UNBOOTED image experiment NOT release::' + text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
+          PY
       - name: Publish bounded audit facts (including on failure)
         if: always()
         run: |
@@ -147,8 +163,9 @@ jobs:
             reports/ready-base/audit/result.json
             reports/ready-base/inspection/
             reports/ready-base/remote-patch/
+            reports/ready-base/image-experiment/result.txt
           if-no-files-found: warn
           retention-days: 7
       - name: Delete candidate from disposable runner
         if: always()
-        run: rm -f reports/ready-base/candidate.img.gz reports/ready-base/candidate.img.gz.part
+        run: rm -f reports/ready-base/candidate.img.gz reports/ready-base/candidate.img.gz.part reports/ready-base/original.raw reports/ready-base/image-experiment/UNBOOTED-NOT-FOR-FLASH.img

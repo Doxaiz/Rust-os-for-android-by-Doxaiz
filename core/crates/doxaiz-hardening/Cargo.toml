@@ -9,4 +9,8 @@ description = "Fail-closed host-side preparation of narrowly pinned remote-suppo
 name = "doxaiz-harden-remote"
 path = "src/main.rs"
 
+[[bin]]
+name = "doxaiz-experiment-image"
+path = "src/image_main.rs"
+
 [dependencies]
