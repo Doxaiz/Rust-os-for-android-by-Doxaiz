@@ -4,7 +4,7 @@
 
 Выбранный путь: **собственный Cuttlefish-образ DoxaizOS + Linux-хост с KVM**. Сборка и запуск — разные задачи. Компилировать можно на большой машине, запускать полученный комплект — на другом, меньшем хосте с виртуализацией. Не требуется 64 ГБ ОЗУ лишь для каждой проверки загрузки: это опубликованное требование современной AOSP-сборки, не универсальный минимум запуска Cuttlefish.
 
-Аренда, платные runner и облачные ресурсы в этой работе не создавались. Образ DoxaizOS не собран; нижеприведённая лаборатория ещё не развёрнута. Успех ранее выполненного Launcher-теста не считается успехом ОС.
+Аренда, платные runner и облачные ресурсы в этой работе не создавались. Образ DoxaizOS не собран; бесплатный эталонный Cuttlefish-стенд ниже уже проверен, но собственная ОС на нём ещё не запускалась. Успех ранее выполненного Launcher-теста не считается успехом ОС.
 
 ## Сопоставление вариантов
 
@@ -107,3 +107,52 @@ python3 scripts/check-firmware.py \
 [Push CI run 46146279694](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/runs/46146279694), commit `82b7170`, успешно завершён. В настоящем Android Emulator check-firmware.py отказал штатному AOSP по отсутствию ожидаемой версии DoxaizOS; smoke дополнительно проверил точную причину отказа. 13 offline-сценариев проверяют остальные gates. **Положительного запуска собственного образа в этом run нет.**
 
 Проверить список уже подключённых self-hosted runners через текущую GitHub-интеграцию не удалось: API вернул `Resource not accessible by integration` (403). Это ограничение прав, а не доказательство отсутствия runners. Новые ресурсы не регистрировались и не оплачивались.
+
+
+## Бесплатные ресурсы: проверка на практике
+
+### GitHub Actions public Linux — найден и реально работает
+
+Добавлен отдельный workflow `.github/workflows/firmware-reference.yml`, не APK-тест.
+[Run 46146936541](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/runs/46146936541), commit `1f1d65b`: **SUCCESS**, job `reference-os` 2 мин 29 с, гость **4096 МБ / 2 CPU**.
+
+Он действительно запускает Cuttlefish/AOSP и проверяет:
+
+* завершение загрузки и SELinux Enforcing;
+* Binder-сервисы activity/package/window;
+* запись маркера в userdata и `sync`;
+* настоящий `adb reboot`, увеличение Android boot_count и повторную полную загрузку;
+* сохранение маркера и работоспособность сервисов после перезагрузки.
+
+Скрипт `reference-os-test.sh` отказывает не-loopback serial и не-Cuttlefish ro.hardware. Это защита от случайного выбора физического аппарата, не криптографическая идентификация. Скрипт изменяет userdata **только одноразовой эталонной VM**, не устанавливает Launcher и не выдаёт её за DoxaizOS. Команды ограничены таймаутами; повторная загрузка — 300 с. Два offline test methods отдельно проверяют успешную оркестрацию и четыре отказа; они не являются OS-тестами.
+
+Использован сторонний action `marcprux/cuttlefish-runner` с зафиксированным commit `3e65049fd8a2c2745eb41dca3431680be5d5ebbd`. До запуска просмотрены action.yml, Linux setup/launch/stop/resolve и публичный успешный [upstream run 45242535240](https://github.com/marcprux/cuttlefish-runner/actions/runs/45242535240) (ubuntu-latest, 3 мин 38 с). Action скачивает images и host tools одного build ID, устанавливает cuttlefish-base, меняет права KVM и настройку AppArmor user namespaces. Поэтому запускается только на одноразовом hosted runner без секретов и write-permissions, не на постоянном пользовательском сервере. APT-пакеты и `latest` AOSP остаются плавающими зависимостями; build ID/target записываются в отчёт. Полной воспроизводимости и верификации SHA образов пока нет.
+
+Артефакт первого run: `cuttlefish-reference-46146936541`, 30 735 байт, SHA-256 из GitHub API `94d18d00077426f5856ceb1bba38b6b429abde5d975db171fed6b40e057ad91e`, хранится 3 дня. Локальное скачивание artifact и полного log через gh не удалось: redirect на внешние Azure/Actions-хосты закончился EOF. Поэтому сырые файлы не просмотрены; PASS подтверждён статусами шагов GitHub API и fail-fast assertions workflow, не локальным анализом логов. Точный Android build ID здесь не угадываем.
+
+Standard hosted Linux для public repo выбран вместо larger runner; workflow отказывается работать для private repo. Новые платные машины/подписки не созданы; отдельный облачный аккаунт не нужен. Free не означает бесконечные ресурсы: сохраняются лимиты job/concurrency/artifacts и правила GitHub. Полную AOSP-компиляцию на стандартном runner не обещаем.
+
+**Ограничение:** этот action не имеет входа для собственного image archive. Для DoxaizOS потребуется отдельный путь доставки и запуска нашего согласованного комплекта. Успех эталона закрывает вопрос бесплатной площадки для boot/reboot-тестов, но не вопрос сборки и не приёмку нашей прошивки.
+
+### Дополнительный реальный прогон с 2 ГБ
+
+[Run 46147167478](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/runs/46147167478), commit `d38fa33`: **SUCCESS**, job `reference-os` 2 мин 19 с, параметры гостя **2048 МБ / 2 CPU**. Повторены те же boot/SELinux/services/reboot/persistence assertions. Это параметры launch, не измерение эффективной доступной памяти и не доказательство бюджетов FPS/PSS/скорости. Текущий workflow оставлен на 2048 МБ. Время job включает установку/скачивание/тесты, поэтому его нельзя называть временем загрузки ОС.
+
+### Альтернативы без оплаты и почему они пока не выбраны
+
+| Площадка | Проверенный факт | Решение |
+|---|---|---|
+| CircleCI OSS Free | До 400 000 credits/месяц для public Linux OSS; Android machine поддерживает nested virtualization; классы medium→2xlarge+ имеют 150 ГБ диска, RAM 7.5→64 ГБ | Реальный резервный кандидат для запуска ОС. Нет подключённого CircleCI-аккаунта/проверки доступности класса. 150 ГБ диска меньше официальных 400 ГБ AOSP, поэтому полноценный build-host не подтверждён |
+| Cirrus CI | Официально индексируемые FAQ/features указывают 50 compute credits/месяц и максимум 8 CPU для free task | Старые инструкции «безлимитной бесплатной сборки Android» не использовать. Текущие RAM/disk/KVM и доступ аккаунта не подтверждены; не выбран |
+| GCE Always Free E2 | E2 исключён из nested virtualization | Не подходит для выбранного KVM-стенда; trial/billing не считать бессрочно бесплатным решением |
+| Genymotion | Произвольный custom ROM не поддерживается | Не решает задачу |
+
+Первичные ссылки для бесплатной части:
+
+* GitHub public hosted billing: https://docs.github.com/en/billing/concepts/product-billing/github-actions
+* Изученный action и его исходники: https://github.com/marcprux/cuttlefish-runner/tree/3e65049fd8a2c2745eb41dca3431680be5d5ebbd
+* CircleCI OSS credits/ограничения: https://circleci.com/docs/guides/plans-pricing/credits/
+* CircleCI Android machine/KVM/150GB: https://circleci.com/docs/guides/execute/android-machine-image/
+* Cirrus FAQ (индекс поисковика, прямое чтение страницы не удалось): https://cirrus-ci.org/faq/
+
+**До готовой прошивки:** получить бесплатную достаточную сборочную мощность либо честно изменить стратегию производства образа; собрать наш образ с provenance; добавить доставку собственного комплекта; пройти identity gates и системные тесты. Подменять это патчем ro.doxaiz.version поверх чужого stock-образа нельзя.
