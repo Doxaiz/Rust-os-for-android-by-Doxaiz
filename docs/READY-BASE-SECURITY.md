@@ -58,3 +58,35 @@ Upstream соответствие для независимого пониман
 Inspector теперь сохраняет точные тексты только фиксированных путей, размер и SHA-256, а `runtime_activation` всегда явно `unknown`. Отсутствующие файлы помечаются unavailable; большие тексты не публикуются в notices целиком. Все debugfs вызовы остаются read-only, ограничены timeout/CPU/address space/output size. Данные никогда не интерпретируются shell.
 
 Локально: 26 unittest methods, **25 PASS + 1 SKIP** без e2fsprogs. Настоящий extraction на hosted runner подтверждён отдельно. **Готовность DoxaizOS: 25–30%**. Обнаружение blocker предотвращает небезопасную рекомендацию, но не повышает готовность прошивки.
+
+## Rust: подготовка проверенных замен, пока без изменения ext4
+
+Добавлен host-only crate `core/crates/doxaiz-hardening`, binary `doxaiz-harden-remote`. Без external dependencies, `unsafe`, shell execution, сетевых запросов, root и фоновой службы. На вход получает **два файла, извлечённых из образа**; их содержимое должно побайтно совпасть с reviewed policy из run 46169653206. Несовпадение хотя бы одного файла, symlink/ancestor, oversized/missing input или уже существующий output дают отказ. Input files не изменяются.
+
+```bash
+cargo run --release --manifest-path core/Cargo.toml \
+  -p doxaiz-hardening --bin doxaiz-harden-remote -- \
+  reports/ready-base/inspection/system-etc-init-phh-remotectl.rc.txt \
+  reports/ready-base/inspection/system-bin-phh-remotectl.sh.txt \
+  reports/ready-base/remote-patch
+```
+
+В новом каталоге создаются:
+
+- `phh-remotectl.rc` — только комментарии: без service declaration, imports и property-trigger действий;
+- `phh-remotectl.sh` — только shebang, комментарий и `exit 1`, без dbclient/цикла/сетевых команд;
+- `NOTICE.txt` — completion record с `image_modified=false`, `boot_tested=false`, `runtime_security_verified=false`. Пишется последним; IO failure оставляет непригодный partial output, повторная запись запрещена.
+
+Это подготовка **двух замен**, а не универсальный security scanner, не полная нейтрализация всех start paths и не готовый hardened ROM. Не копировать файлы вслепую на телефон: ещё нужны image integration, SELinux labels/modes, filesystem/AVB/подписи и runtime проверка. Если где-то есть альтернативный service с тем же script, простой `exit 1` может приводить к рестартам: наличие таких путей надо проверить до применения. Инструмент не трогает adbd/dbclient глобально и не выставляет произвольные «ускоряющие» properties.
+
+Ready-base workflow собирает этот инструмент в release и применяет **к извлечённым текстовым файлам**, сохраняя маленький patch report. Исходный gzip/raw image не изменяется и не распространяется; подготовка замены не снимает запрет рекомендации исходного image. Скопированные `.original` policy inputs сохраняют upstream provenance; новая MIT crate не перелицензирует Android/TrebleDroid firmware. Review лицензий перед redistribution остаётся обязательным.
+
+Rust tests проверяют точные outputs/неизменность inputs, отказ на drift/missing/oversized, повторный output и symlinks. Это host-tool tests, не Android runtime. Файловые race attacks от другого локального пользователя не моделируются; только собственный disposable workspace, без root. Rust здесь используется для нового собственного слоя, а не как заявление об ускорении готового Android.
+
+### Подтверждённый результат Rust-подготовки
+
+Workspace `cargo test` прошёл в полном [CI 46171240670](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/runs/46171240670), commit 6dfdf69, SUCCESS. Первая integration-попытка 46171240687 FAILED: ошибка shell wiring разбила аргументы, программа корректно завершилась с usage exit 2. Исправление de0d786 добавило regression test фактического workflow command с mock cargo.
+
+После исправления [run 46171662508](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/runs/46171662508) **SUCCESS**: готовый gzip снова загружен/сверен, конфигурации извлечены read-only, реальный release Rust binary принял их точные bytes и создал две inert replacement files + NOTICE. [Полный patch evidence](evidence/rust-remote-patch-46171662508.json) получен через API, SHA текстов проверены локально.
+
+**Не путать:** исходный system.img всё ещё НЕ модифицирован; ext4 integration/SELinux/AVB/runtime не выполнены. Это первый реально проверенный Rust patch-preparation шаг, не безопасная готовая прошивка. Общая готовность 25–30%. Локально Python suites: 27 methods, 26 PASS + 1 SKIP; Rust compiler отсутствует в sandbox, его compile/tests выполнены hosted CI.

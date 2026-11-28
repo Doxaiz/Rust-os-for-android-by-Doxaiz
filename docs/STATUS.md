@@ -12,6 +12,8 @@
 
 **Rust-first:** новый PSI parser и одноразовый CLI реализованы в doxaiz-metrics без новых dependencies/resident service; CI 46170363841 SUCCESS (cargo tests + release smoke). Это диагностический компонент, не ускорение ROM, не Android-target build и не исправление remote/debug blocker. [Методика и ограничения](PERFORMANCE.md).
 
+Rust hardening preparation: run 46171662508 SUCCESS — release-инструмент создал проверенные замены двух remote-support файлов из реального образа. **В system.img они ещё не применены**, security blocker не снят; [evidence/ограничения](READY-BASE-SECURITY.md).
+
 ## Три уровня готовности
 
 | Уровень | Состояние | Пояснение |

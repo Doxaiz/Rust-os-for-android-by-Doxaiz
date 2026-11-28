@@ -1,0 +1,26 @@
+{
+  "scope": "two-file-host-patch-only",
+  "image_modified": false,
+  "boot_tested": false,
+  "runtime_security_verified": false,
+  "files": {
+    "NOTICE.txt": {
+      "sha256": "efeffc7eeeb44b2972fb2834deb44bd00738e9344eb5a192d6aafd97d52a7e76",
+      "text": "scope=two-file-host-patch-only\npolicy=ready-a64-20261109-remote-v1\nsource_evidence=ready-security-46169653206\nimage_modified=false\nboot_tested=false\nruntime_security_verified=false\nDo not flash these files or claim a hardened ROM. Image integration, labels, AVB, other start paths and runtime checks remain required.\n"
+    },
+    "phh-remotectl.rc": {
+      "sha256": "0aa065974dc297ac739e9c4c57fe0066eb37ddf6069936a33a1d71d8fb494a76",
+      "text": "# DoxaizOS: remote-support service and TCP ADB triggers intentionally omitted.\n# No service declaration, imports or property actions in this replacement.\n"
+    },
+    "phh-remotectl.sh": {
+      "sha256": "e4261705b6769ca61374b74c10eaf6a2ea6ad69a9e849ee84c8d4043cbe7b2d5",
+      "text": "#!/system/bin/sh\n# DoxaizOS: remote-support entry point intentionally unavailable.\nexit 1\n"
+    }
+  },
+  "evidence": {
+    "run_url": "https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/runs/46171662508",
+    "source_commit": "de0d7865d9112ef610e0b5e69e7657601fb49d98",
+    "conclusion": "success",
+    "input_image_observed_sha256": "7000876dee2b0f6f0814431626c495b0f254b00456c88964dee2a68473b3b146"
+  }
+}
