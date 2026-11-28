@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Integration experiment ONLY on disposable stock Cuttlefish userdebug.
+# NEGATIVE integration experiment ONLY on disposable stock Cuttlefish userdebug.
 # Pushes our existing APK + XML into overlayfs, creates a fresh user, checks
-# initial HOME and user choice persistence. NOT a built DoxaizOS firmware test.
+# XML-alone failure and user choice persistence. NOT a built DoxaizOS firmware test.
 set -euo pipefail
 [ "${GITHUB_ACTIONS:-}" = true ] && [ "${RUNNER_ENVIRONMENT:-}" = github-hosted ] || {
     echo 'Refusing system mutation outside a disposable hosted runner' >&2; exit 1;
@@ -133,16 +133,33 @@ adb_cmd shell cmd package query-activities --user "$user_id" --brief \
     -a android.intent.action.MAIN -c android.intent.category.HOME > "$report/home-candidates.txt"
 adb_cmd shell cmd role get-role-holders --user "$user_id" android.app.role.HOME > "$report/home-role.txt"
 printf '%s\n' "$home" > "$report/initial-home.txt"
-[ "$home" = com.doxaiz.launcher/.MainActivity ] || [ "$home" = com.doxaiz.launcher/com.doxaiz.launcher.MainActivity ]
+# The earlier positive hypothesis FAILED on the real platform. Preserve it
+# as a precise negative regression, not a green "default HOME works" claim.
+[ "$home" = android/com.android.internal.app.ResolverActivity ]
+python3 - "$report" <<'PYCONTROL'
+from pathlib import Path
+import sys
+root = Path(sys.argv[1])
+candidates = (root / 'home-candidates.txt').read_text()
+assert 'com.doxaiz.launcher/.MainActivity' in candidates
+assert 'com.android.launcher3/' in candidates
+assert candidates.count('priority=0 ') == 2, candidates
+assert not (root / 'home-role.txt').read_text().strip(), 'Unexpected HOME holder'
+PYCONTROL
 # TEST-ONLY simulation of an explicit user choice. This is not used by the
 # own-firmware acceptance path, which never assigns HOME.
+adb_cmd shell cmd package set-home-activity --user "$user_id" com.doxaiz.launcher/.MainActivity > "$report/user-choice-doxaiz.txt"
+[ "$(resolve_home)" = com.doxaiz.launcher/.MainActivity ]
+reboot_guest
+adb_cmd shell am start-user -w "$user_id" > "$report/start-user-after-doxaiz-reboot.txt"
+[ "$(resolve_home)" = com.doxaiz.launcher/.MainActivity ]
 adb_cmd shell cmd package set-home-activity --user "$user_id" "$stock_home" > "$report/user-choice.txt"
 [ "$(resolve_home)" = "$stock_home" ]
 reboot_guest
 adb_cmd shell am start-user -w "$user_id" > "$report/start-user-after-reboot.txt"
 [ "$(resolve_home)" = "$stock_home" ]
 [ "$(adb_cmd shell getenforce | tr -d '\r\n')" = Enforcing ]
-printf '%s\n' 'PASS: initial HOME XML and explicit user choice across reboot on modified STOCK AOSP.' \
+printf '%s\n' 'PASS NEGATIVE CONTROL: XML alone leaves a chooser; explicit choices of Doxaiz and stock HOME each survive reboot.' \
     'NOT a DoxaizOS image build/boot. Overlayfs+system APK injection was used for this integration experiment.' \
     > "$report/result.txt"
 cat "$report/result.txt"

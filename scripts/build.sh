@@ -59,6 +59,13 @@ repo sync -c --no-tags --optimized-fetch --prune -j"$(nproc)"
 echo "=== Overlay DoxaizOS ==="
 "${REPO_ROOT}/scripts/apply-overlay.sh" "${TREE}"
 
+case "$LUNCH_TARGET" in
+    doxaiz_cf_x86_64_phone-*)
+        echo "=== Начальный HOME: Launcher3 остаётся запасным (-1), Doxaiz APK не меняется ==="
+        bash "${REPO_ROOT}/scripts/apply-home-fallback-patch.sh" "$TREE"
+        ;;
+esac
+
 echo "=== Prebuilt APK лаунчера ==="
 DOXAIZ_ALLOW_UNVERIFIED_APK=0 "${REPO_ROOT}/scripts/fetch-launcher-apk.sh" "${TREE}"
 

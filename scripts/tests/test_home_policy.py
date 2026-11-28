@@ -30,8 +30,8 @@ elif args == ['shell', 'settings', 'get', 'global', 'boot_count']: print(count)
 elif args[:3] == ['shell', 'settings', '--user']: print('1')
 elif args[:2] == ['shell', 'wm']: pass
 elif args[:3] == ['shell', 'dumpsys', 'package']: print('mock preferences')
-elif args[:3] == ['shell', 'cmd', 'role']: print('com.doxaiz.launcher')
-elif args[:4] == ['shell', 'cmd', 'package', 'query-activities']: print('mock candidates')
+elif args[:3] == ['shell', 'cmd', 'role']: pass
+elif args[:4] == ['shell', 'cmd', 'package', 'query-activities']: print('priority=0 a com.doxaiz.launcher/.MainActivity\npriority=0 b com.android.launcher3/.uioverrides.QuickstepLauncher')
 elif args[:2] == ['shell', 'cat']: print('mock XML')
 elif args == ['reboot']: count_file.write_text(str(count + 1))
 elif args == ['root'] or args == ['disable-verity']: print('mock ok')
@@ -42,12 +42,12 @@ elif args[:1] == ['push']:
     assert pathlib.Path(args[1]).is_file()
 elif args[:3] == ['shell', 'cmd', 'package'] and args[3] == 'resolve-activity':
     if '--user' not in args: print(stock)
-    elif case == 'initial_home_failure': print(stock)
-    elif (root / 'choice').exists() and not (case == 'lost_choice' and count >= 5): print(stock)
-    else: print('com.doxaiz.launcher/.MainActivity')
+    elif case == 'unexpected_initial_choice': print('com.doxaiz.launcher/.MainActivity')
+    elif (root / 'choice').exists() and not (case == 'lost_choice' and count >= 5): print((root / 'choice').read_text())
+    else: print('android/com.android.internal.app.ResolverActivity')
 elif args[:4] == ['shell', 'cmd', 'package', 'set-home-activity']:
     assert args[args.index('--user') + 1] == '10'  # NEVER primary user
-    (root / 'choice').touch()
+    (root / 'choice').write_text(args[-1])
 elif args[:4] == ['shell', 'pm', 'path', 'com.doxaiz.launcher']:
     print('package:/system/app/DoxaizLauncher/DoxaizLauncher.apk')
 elif args[:3] == ['shell', 'pm', 'create-user']: print('Success: created user id 10')
@@ -74,12 +74,12 @@ class HomePolicyTests(unittest.TestCase):
         self.assertEqual([e.get('name') for e in items[0].findall('filter/action')], ['android.intent.action.MAIN'])
         self.assertEqual({e.get('name') for e in items[0].findall('filter/cat')},
                          {'android.intent.category.HOME', 'android.intent.category.DEFAULT'})
-        self.assertIn('vendor/doxaiz/etc/preferred-apps/doxaiz-home.xml:$(TARGET_COPY_OUT_SYSTEM)/etc/preferred-apps/doxaiz-home.xml',
+        self.assertNotIn('vendor/doxaiz/etc/preferred-apps/doxaiz-home.xml:$(TARGET_COPY_OUT_SYSTEM)/etc/preferred-apps/doxaiz-home.xml',
                       (vendor / 'products/doxaiz_base.mk').read_text())
 
     def test_integration_orchestration_and_guards(self):
         for case in ('success', 'outside_hosted', 'wrong_serial', 'phone', 'user_build',
-                     'remount_failure', 'initial_home_failure', 'lost_choice'):
+                     'remount_failure', 'unexpected_initial_choice', 'lost_choice'):
             with self.subTest(case=case), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
                 repo = root / 'repo'
@@ -114,7 +114,7 @@ printf fixture > "$root/overlay/vendor/doxaiz/apps/DoxaizLauncher/DoxaizLauncher
                     self.assertFalse(calls.exists())
                 elif case in ('phone', 'user_build'):
                     self.assertTrue(all(json.loads(line)[:2] == ['shell', 'getprop'] for line in calls.read_text().splitlines()))
-                if case in ('success', 'initial_home_failure', 'lost_choice'):
+                if case in ('success', 'unexpected_initial_choice', 'lost_choice'):
                     self.assertTrue((root / 'removed').exists())
 
 

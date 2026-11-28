@@ -1,4 +1,4 @@
-name: HOME policy integration (modified stock, NOT DoxaizOS)
+name: HOME XML negative control (modified stock, NOT DoxaizOS)
 
 on:
   push:
@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
-      - name: Test initial HOME policy and user-choice persistence on disposable AOSP
+      - name: Reproduce XML-alone failure and verify explicit user choices survive reboot
         uses: marcprux/cuttlefish-runner@3e65049fd8a2c2745eb41dca3431680be5d5ebbd
         env:
           GH_TOKEN: ${{ github.token }}

@@ -35,7 +35,7 @@ PRODUCT_PROPERTY_OVERRIDES += \
 # Мы фиксируем их явно, чтобы поведение не зависело от значений по умолчанию
 # конкретной ветки. Осознанно, не «тюнинг наугад»: это low-RAM колонка таблицы.
 #   * use_psi=true (PSI вместо vmpressure; ядро должно быть CONFIG_PSI=y)
-#   * psi_partial_stall_ms=200  — low RAM: уведомления приходят раньше, чем HP (70)
+#   * psi_partial_stall_ms=200  — low RAM: больший порог partial stall, чем HP (70)
 #   * psi_complete_stall_ms=700 — критический порог полного простоя
 #   * thrashing_limit=30        — low RAM: раньше ограничиваем thrashing (HP: 100)
 #   * thrashing_limit_decay=50  — low RAM: быстрее опускаем порог после kill (HP: 10)
@@ -61,5 +61,8 @@ PRODUCT_PROPERTY_OVERRIDES += \
 # как privileged-приложение (LOCAL_CERTIFICATE := platform). Для режима
 # PRESIGNED из комплекта overlay allowlist не нужен, файл безобиден.
 PRODUCT_COPY_FILES += \
-    vendor/doxaiz/etc/privapp-permissions-doxaiz.xml:$(TARGET_COPY_OUT_SYSTEM)/etc/permissions/privapp-permissions-doxaiz.xml \
-    vendor/doxaiz/etc/preferred-apps/doxaiz-home.xml:$(TARGET_COPY_OUT_SYSTEM)/etc/preferred-apps/doxaiz-home.xml
+    vendor/doxaiz/etc/privapp-permissions-doxaiz.xml:$(TARGET_COPY_OUT_SYSTEM)/etc/permissions/privapp-permissions-doxaiz.xml
+
+# Do NOT install the experimental preferred-apps XML: real Cuttlefish testing
+# showed a HOME chooser after Provision completed. The CF build path instead
+# patches stock Launcher3 HOME priority to -1 (Doxaiz APK remains unchanged).
