@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/ready-base.yml'
       - 'scripts/audit-ready-gsi.py'
+      - 'scripts/inspect-ready-gsi.py'
   workflow_dispatch:
 
 permissions:
@@ -22,6 +23,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Obtain exact upstream A64 Vanilla CANDIDATE, not latest or a flash recommendation
         run: |
           mkdir -m 700 -p reports/ready-base
@@ -36,6 +39,13 @@ jobs:
         run: |
           python3 scripts/audit-ready-gsi.py \
             --image reports/ready-base/candidate.img.gz --output reports/ready-base/audit
+      - name: Read properties and runtime ELF headers WITHOUT mounting or executing image
+        run: |
+          command -v debugfs
+          python3 scripts/inspect-ready-gsi.py \
+            --image reports/ready-base/candidate.img.gz \
+            --observed-sha256 7000876dee2b0f6f0814431626c495b0f254b00456c88964dee2a68473b3b146 \
+            --output reports/ready-base/inspection
       - name: Publish bounded audit facts (including on failure)
         if: always()
         run: |
@@ -53,6 +63,11 @@ jobs:
               print('::notice title=UNTRUSTED GSI container audit::' + json.dumps(result).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
           else:
               summary += 'No audit result: download/runner failed; NOT PASS.\n'
+          inspection = Path('reports/ready-base/inspection/result.json')
+          if inspection.exists():
+              result = json.loads(inspection.read_text())
+              summary += '\n## Read-only filesystem inspection (untrusted declarations)\n```json\n' + json.dumps(result, indent=2) + '\n```\n'
+              print('::notice title=UNTRUSTED GSI properties::' + json.dumps(result).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as stream:
               stream.write(summary)
           PY
@@ -61,7 +76,9 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: ready-base-audit-${{ github.run_id }}
-          path: reports/ready-base/audit/result.json
+          path: |
+            reports/ready-base/audit/result.json
+            reports/ready-base/inspection/
           if-no-files-found: warn
           retention-days: 7
       - name: Delete candidate from disposable runner
