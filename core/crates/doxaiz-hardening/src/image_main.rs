@@ -7,9 +7,9 @@ fn main() -> ExitCode {
         eprintln!("Usage: doxaiz-experiment-image --allow-unbooted-experiment PINNED_RAW_IMAGE NEW_OUTPUT_DIRECTORY");
         return ExitCode::from(2);
     }
-    match doxaiz_hardening::image::experiment(Path::new(&args[1]), Path::new(&args[2])) {
+    match doxaiz_hardening::image::normalize_experiment(Path::new(&args[1]), Path::new(&args[2])) {
         Ok(()) => {
-            println!("Static two-file image experiment completed. NOT booted, NOT AVB verified, NOT FOR FLASHING.");
+            println!("Disposable normalization diagnostic completed; copy deleted. NOT booted, NOT AVB verified, NOT FOR FLASHING.");
             ExitCode::SUCCESS
         }
         Err(error) => {

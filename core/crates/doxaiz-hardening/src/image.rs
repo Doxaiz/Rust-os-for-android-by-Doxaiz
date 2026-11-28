@@ -208,6 +208,79 @@ pub fn unshare_feasibility(input: &Path, output: &Path) -> Result<(), String> {
     write_probe_file(&output.join("result.txt"), report.as_bytes())
 }
 
+/// Disposable layout feasibility only. Never accepts an arbitrary image or
+/// feeds a normalized image into the pinned-original data editor.
+pub fn normalize_experiment(input: &Path, output: &Path) -> Result<(), String> {
+    // Reuse the full source/path/SHA guard and record the original dry run.
+    unshare_feasibility(input, output)?;
+    let name = input.to_str().ok_or("UTF-8 input path required")?;
+    let target = output.join("UNBOOTED-NOT-FOR-FLASH.img");
+    let target_str = target.to_str().ok_or("UTF-8 output path required")?;
+    let result = (|| {
+        let mut copy = OpenOptions::new().write(true).create_new(true).open(&target).map_err(|e| e.to_string())?;
+        let mut source = File::open(input).map_err(|e| e.to_string())?;
+        let copied = std::io::copy(&mut source, &mut copy).map_err(|e| e.to_string())?;
+        if copied != 1815896064 { return Err("copy length mismatch".into()); }
+        copy.sync_all().map_err(|e| e.to_string())?;
+        if sha(target_str)? != INPUT_SHA { return Err("copy SHA mismatch".into()); }
+        // Lab file size only; NEVER a claim about a device partition budget.
+        copy.set_len(4 * 1024 * 1024 * 1024).map_err(|e| e.to_string())?;
+        copy.sync_all().map_err(|e| e.to_string())?;
+        drop(copy);
+        normalization_stage(output, "resize", "resize2fs", &[target_str])?;
+        normalization_stage(output, "unshare", "e2fsck", &["-f", "-y", "-E", "unshare_blocks", target_str])?;
+        normalization_stage(output, "final-fsck", "e2fsck", &["-f", "-n", target_str])?;
+        let mut normalized = File::open(&target).map_err(|e| e.to_string())?;
+        let flags = read_at(&mut normalized, 1124, 4)?;
+        if u32::from_le_bytes(flags.try_into().map_err(|_| "invalid feature word")?) & 0x4000 != 0 {
+            return Err("shared_blocks still present".into());
+        }
+        for (index, (path, original, _)) in FILES.iter().enumerate() {
+            let data = command("debugfs", &["-R", &format!("cat {path}"), target_str])?;
+            if data.as_bytes() != *original { return Err("reviewed file changed during normalization".into()); }
+            for (label, image) in [("before", name), ("after", target_str)] {
+                let stat = command("debugfs", &["-R", &format!("stat {path}"), image])?;
+                let attrs = command("debugfs", &["-R", &format!("ea_list {path}"), image])?;
+                write_probe_file(&output.join(format!("file-{index}-{label}-stat.txt")), stat.as_bytes())?;
+                write_probe_file(&output.join(format!("file-{index}-{label}-xattrs.txt")), attrs.as_bytes())?;
+            }
+        }
+        let hash = sha(target_str)?;
+        Ok(hash)
+    })();
+    if sha(name)? != INPUT_SHA { return Err("ORIGINAL INPUT CHANGED: discard experiment".into()); }
+    let (status, details) = match &result {
+        Ok(hash) => ("completed-layout-only", format!("normalized_sha256={hash}")),
+        Err(error) => ("failed-discard-copy", format!("error={error}")),
+    };
+    let report = format!("scope=disposable-normalization-feasibility\nstatus={status}\n{details}\nsource_unchanged=true\nall_files_metadata_verified=false\nhardening_applied=false\nboot_tested=false\npartition_fit_verified=false\nrelease_approved=false\n");
+    write_probe_file(&output.join("normalization.txt"), report.as_bytes())?;
+    // No large invalid or unbooted output survives the host diagnostic.
+    fs::remove_file(&target).map_err(|e| e.to_string())?;
+    result.map(|_| ())
+}
+
+fn normalization_stage(output: &Path, stage: &str, program: &str, args: &[&str]) -> Result<(), String> {
+    let mut child = Command::new("timeout").arg("180s").arg(program).args(args)
+        .env("LC_ALL", "C").stdout(Stdio::piped()).stderr(Stdio::piped())
+        .spawn().map_err(|e| e.to_string())?;
+    let stdout = child.stdout.take().ok_or("stdout pipe missing")?;
+    let stderr = child.stderr.take().ok_or("stderr pipe missing")?;
+    let out = std::thread::spawn(move || drain_excerpt(stdout));
+    let err = std::thread::spawn(move || drain_excerpt(stderr));
+    let status = child.wait().map_err(|e| e.to_string())?;
+    for (suffix, reader) in [("stdout", out), ("stderr", err)] {
+        let (excerpt, bytes, truncated) = reader.join().map_err(|_| "reader panicked")??;
+        write_probe_file(&output.join(format!("{stage}.{suffix}.txt")), &excerpt)?;
+        write_probe_file(&output.join(format!("{stage}.{suffix}.counts.txt")),
+            format!("bytes={bytes}\nexcerpt={truncated}\n").as_bytes())?;
+    }
+    write_probe_file(&output.join(format!("{stage}.exit.txt")), format!("{:?}\n", status.code()).as_bytes())?;
+    let accepted = if stage == "unshare" { matches!(status.code(), Some(0 | 1)) } else { status.success() };
+    if !accepted { return Err(format!("{stage} failed: {:?}; inspect bounded stage diagnostics", status.code())); }
+    Ok(())
+}
+
 fn drain_excerpt(mut source: impl Read) -> Result<(Vec<u8>, u64, bool), String> {
     const HALF: usize = 16384;
     let mut head = Vec::with_capacity(HALF);

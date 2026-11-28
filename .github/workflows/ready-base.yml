@@ -101,6 +101,29 @@ jobs:
                   text = text[:3000] + '\nTRUNCATED: larger bounded excerpt in artifact; original middle discarded\n' + text[-1000:]
               print('::notice title=Read-only unshare ' + name + '::' + text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
           PY
+      - name: Rust disposable 4 GiB normalization feasibility (NO release image)
+        run: |
+          python3 - <<'PY'
+          import shutil
+          if shutil.disk_usage('reports/ready-base').free < 5 * 1024**3:
+              raise SystemExit('Insufficient disk for disposable 4 GiB lab file')
+          PY
+          cargo run --release --manifest-path core/Cargo.toml -p doxaiz-hardening --bin doxaiz-experiment-image -- \
+            --allow-unbooted-experiment reports/ready-base/original.raw reports/ready-base/normalization
+      - name: Publish bounded normalization diagnostics even on refusal
+        if: always()
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('reports/ready-base/normalization')
+          for p in sorted(root.glob('*.txt')):
+              if p.name == 'result.txt' or p.name.startswith('e2fsck.'):
+                  continue
+              text = p.read_text(errors='replace')
+              if len(text) > 5000:
+                  text = text[:2500] + '\n[excerpt shortened; middle discarded]\n' + text[-1500:]
+              print('::notice title=Normalization ' + p.name + '::' + text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
+          PY
       - name: Publish bounded audit facts (including on failure)
         if: always()
         run: |
@@ -171,8 +194,9 @@ jobs:
             reports/ready-base/remote-patch/
             reports/ready-base/image-experiment/result.txt
             reports/ready-base/unshare-probe/
+            reports/ready-base/normalization/*.txt
           if-no-files-found: warn
           retention-days: 7
       - name: Delete candidate from disposable runner
         if: always()
-        run: rm -f reports/ready-base/candidate.img.gz reports/ready-base/candidate.img.gz.part reports/ready-base/original.raw reports/ready-base/image-experiment/UNBOOTED-NOT-FOR-FLASH.img
+        run: rm -f reports/ready-base/candidate.img.gz reports/ready-base/candidate.img.gz.part reports/ready-base/original.raw reports/ready-base/image-experiment/UNBOOTED-NOT-FOR-FLASH.img reports/ready-base/normalization/UNBOOTED-NOT-FOR-FLASH.img
