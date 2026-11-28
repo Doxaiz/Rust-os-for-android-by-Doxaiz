@@ -1,0 +1,195 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'arena/**']
+  pull_request:
+
+jobs:
+  rust:
+    name: Rust (test + verify)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable)
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustc --version
+          cargo --version
+
+      - name: cargo test
+        working-directory: core
+        run: cargo test --workspace --all-targets
+
+      - name: Rust PSI parser release smoke (host Linux, NOT phone performance)
+        working-directory: core
+        run: |
+          printf 'some avg10=1.25 avg60=0.50 avg300=0.10 total=123456\nfull avg10=0.25 avg60=0.10 avg300=0.01 total=1234\n' > /tmp/doxaiz-memory.psi
+          cargo run --release -p doxaiz-metrics --bin doxaiz-check -- psi /tmp/doxaiz-memory.psi
+          # Real host data is ONLY parser interoperability, not DoxaizOS metrics.
+          if [ -r /proc/pressure/memory ]; then
+            cargo run --release -p doxaiz-metrics --bin doxaiz-check -- psi /proc/pressure/memory
+          else
+            echo 'Host PSI unavailable; synthetic smoke only, not a measured phone result.'
+          fi
+
+      - name: cargo clippy (информативно, не блокирует)
+        working-directory: core
+        continue-on-error: true
+        run: |
+          rustup component add clippy
+          cargo clippy --workspace --all-targets
+
+      - name: doxaiz-xtask verify
+        working-directory: core
+        run: cargo run -p doxaiz-xtask -- verify
+
+      - name: gen-prop smoke test (2 ГБ low-RAM профиль)
+        working-directory: core
+        run: |
+          cargo run -p doxaiz-xtask -- gen-prop --ram-mb 2048 | tee /tmp/lowram.prop
+          grep -q 'ro.config.low_ram=true' /tmp/lowram.prop
+          grep -q 'dalvik.vm.heapgrowthlimit=96m' /tmp/lowram.prop
+
+  docs:
+    name: Docs (ссылки)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Markdown link check
+        run: python3 scripts/check-docs-links.py
+
+  scripts:
+    name: Scripts (синтаксис + XML)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: bash -n
+        run: |
+          for f in scripts/*.sh; do
+            echo "bash -n $f"
+            bash -n "$f"
+          done
+
+      - name: shellcheck (если есть в образе)
+        run: |
+          if command -v shellcheck >/dev/null 2>&1; then
+            shellcheck -S warning scripts/*.sh
+          else
+            echo "shellcheck не установлен — пропускаю (не критично)"
+          fi
+
+      - name: python syntax
+        run: python3 -m py_compile scripts/check-docs-links.py
+
+      - name: Script regression tests (offline)
+        run: python3 -m unittest discover -s scripts/tests -v
+
+      - name: XML валиден
+        run: |
+          python3 - <<'EOF'
+          import xml.etree.ElementTree as ET
+          for f in ["manifest/doxaiz.xml",
+                    "overlay/vendor/doxaiz/etc/privapp-permissions-doxaiz.xml"]:
+              ET.parse(f)
+              print("ok", f)
+          EOF
+
+  launcher-prebuilt:
+    name: Лаунчер APK из релиза (информативно)
+    runs-on: ubuntu-latest
+    # Внешняя зависимость вне нашего контроля: доступность release-assets.githubusercontent.com
+    # и наличие APK в последнем релизе. Падаем мягко, но печатаем всё в лог.
+    continue-on-error: true
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Скачать последний APK Doxaiz Launcher и проверить его
+        run: |
+          gh release download --repo Doxaiz/Doxaiz-android-launcher- \
+            --pattern '*.apk' --dir /tmp/apk --clobber
+          python3 - <<'EOF'
+          import glob, os, zipfile
+          apks = glob.glob('/tmp/apk/*.apk')
+          assert apks, 'в последнем релизе нет *.apk'
+          apk = apks[0]
+          with zipfile.ZipFile(apk) as z:
+              names = z.namelist()
+              assert 'AndroidManifest.xml' in names, 'нет AndroidManifest.xml'
+              assert any(n.endswith('.dex') for n in names), 'нет classes*.dex'
+          print('APK валиден:', os.path.basename(apk),
+                f'({os.path.getsize(apk)/1e6:.1f} МБ)')
+          EOF
+
+  android-emulator:
+    name: Android Emulator (API 29, 2 GB, Launcher HOME)
+    # Run once per push, not again for the same PR head. Fork PRs do not run it.
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and verify released launcher
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DOXAIZ_ALLOW_UNVERIFIED_APK: '0'
+        run: |
+          mkdir -p reports
+          if ! bash scripts/fetch-launcher-apk.sh > reports/launcher-download.txt 2>&1; then
+            while IFS= read -r line; do
+              line="${line//'%'/'%25'}"
+              printf '::error::%s\n' "$line"
+            done < reports/launcher-download.txt
+            exit 1
+          fi
+          cat reports/launcher-download.txt
+      - name: Enable KVM for disposable emulator
+        run: |
+          test -e /dev/kvm
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Boot Android and test actual launcher
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2, pinned
+        with:
+          api-level: 29
+          target: default
+          arch: x86_64
+          cores: 2
+          ram-size: 2048M
+          heap-size: 256M
+          emulator-boot-timeout: 600
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
+          script: bash scripts/emulator-smoke.sh overlay/vendor/doxaiz/apps/DoxaizLauncher/DoxaizLauncher.apk reports/emulator-api29
+      - name: Summarize real emulator result
+        if: always()
+        run: |
+          {
+            echo '## Android Emulator API 29 / 2048 MB (not DoxaizOS firmware)'
+            if [ -f reports/emulator-api29/result.txt ]; then
+              cat reports/emulator-api29/result.txt
+              echo '```text'
+              cat reports/emulator-api29/start.txt
+              cat reports/emulator-api29/home.txt
+              echo '```'
+            else
+              echo 'No successful smoke result. Inspect failed steps and artifacts.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Save emulator evidence (not a firmware release)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: android-emulator-api29-${{ github.run_id }}
+          path: |
+            reports/emulator-api29/
+            reports/launcher-download.txt
+          if-no-files-found: warn
+          retention-days: 7

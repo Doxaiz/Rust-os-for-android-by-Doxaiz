@@ -1,0 +1,24 @@
+[package]
+name = "doxaiz-hardening"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Fail-closed host-side preparation of narrowly pinned remote-support replacements"
+
+[[bin]]
+name = "doxaiz-harden-remote"
+path = "src/main.rs"
+
+[[bin]]
+name = "doxaiz-experiment-image"
+path = "src/image_main.rs"
+
+[[bin]]
+name = "doxaiz-unshare-probe"
+path = "src/unshare_main.rs"
+
+[[bin]]
+name = "doxaiz-normalize-experiment"
+path = "src/normalize_main.rs"
+
+[dependencies]

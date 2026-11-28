@@ -1,0 +1,218 @@
+name: Ready Vanilla base audit (NOT DoxaizOS boot)
+
+on:
+  push:
+    branches: ['arena/**', main]
+    paths:
+      - '.github/workflows/ready-base.yml'
+      - 'scripts/audit-ready-gsi.py'
+      - 'scripts/inspect-ready-gsi.py'
+      - 'core/crates/doxaiz-hardening/**'
+      - 'core/Cargo.toml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ready-base-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    if: github.event.repository.private == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Obtain exact upstream A64 Vanilla CANDIDATE, not latest or a flash recommendation
+        run: |
+          mkdir -m 700 -p reports/ready-base
+          # Fixed upstream path. No secrets, root, mounts, image execution or flash.
+          # Publisher hash/signature is NOT independently known: this is quarantine.
+          # A mirror stalled for the full 900 s in run 46160483273.
+          # Bound each attempt and switch transport route, NEVER candidate/version.
+          file='lineage-21.0-20261109-UNOFFICIAL-a64_bvN.img.gz'
+          obtained=false
+          for url in \
+            "https://sourceforge.net/projects/andyyan-gsi/files/lineage-21-pre-qpr2-td/$file/download" \
+            "https://downloads.sourceforge.net/project/andyyan-gsi/lineage-21-pre-qpr2-td/$file" \
+            "https://master.dl.sourceforge.net/project/andyyan-gsi/lineage-21-pre-qpr2-td/$file?viasf=1"; do
+            rm -f reports/ready-base/candidate.img.gz.part
+            if curl --fail --location --proto '=https' --proto-redir '=https' \
+              --connect-timeout 15 --max-time 180 --speed-limit 65536 --speed-time 30 \
+              --max-filesize 2147483648 --output reports/ready-base/candidate.img.gz.part "$url"; then
+              obtained=true
+              break
+            fi
+          done
+          [ "$obtained" = true ]
+          # Continuity pin only, NOT independent publisher authentication.
+          echo '7000876dee2b0f6f0814431626c495b0f254b00456c88964dee2a68473b3b146  reports/ready-base/candidate.img.gz.part' | sha256sum -c -
+          mv reports/ready-base/candidate.img.gz.part reports/ready-base/candidate.img.gz
+      - name: Audit compressed stream and header, NOT integrity attestation or compatibility
+        run: |
+          python3 scripts/audit-ready-gsi.py \
+            --image reports/ready-base/candidate.img.gz --output reports/ready-base/audit
+      - name: Read properties and runtime ELF headers WITHOUT mounting or executing image
+        run: |
+          command -v debugfs
+          python3 scripts/inspect-ready-gsi.py \
+            --image reports/ready-base/candidate.img.gz \
+            --observed-sha256 7000876dee2b0f6f0814431626c495b0f254b00456c88964dee2a68473b3b146 \
+            --output reports/ready-base/inspection
+      - name: Prepare Rust two-file patch from actual extracted configs (NO image modification)
+        run: |
+          cargo --version
+          cargo run --release --manifest-path core/Cargo.toml -p doxaiz-hardening --bin doxaiz-harden-remote -- \
+            reports/ready-base/inspection/system-etc-init-phh-remotectl.rc.txt \
+            reports/ready-base/inspection/system-bin-phh-remotectl.sh.txt \
+            reports/ready-base/remote-patch
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          root = Path('reports/ready-base/remote-patch')
+          facts = {'scope': 'two-file-host-patch-only', 'image_modified': False,
+                   'boot_tested': False, 'runtime_security_verified': False,
+                   'files': {p.name: {'sha256': hashlib.sha256(p.read_bytes()).hexdigest(),
+                                      'text': p.read_text()} for p in sorted(root.iterdir())}}
+          (root / 'result.json').write_text(json.dumps(facts, indent=2) + '\n')
+          print('::notice title=Rust remote patch prepared NOT applied::' + json.dumps(facts).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
+          PY
+      - name: Read-only Rust shared-block unshare feasibility (NO image modification)
+        run: |
+          command -v e2fsck
+          python3 - <<'PY'
+          import shutil
+          if shutil.disk_usage('reports/ready-base').free < 2 * 1815896064 + 1024**3:
+              raise SystemExit('Not enough disk for two disposable raw images')
+          PY
+          gzip -dc reports/ready-base/candidate.img.gz > reports/ready-base/original.raw
+          cargo run --release --manifest-path core/Cargo.toml -p doxaiz-hardening --bin doxaiz-unshare-probe -- \
+            reports/ready-base/original.raw reports/ready-base/unshare-probe
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('reports/ready-base/unshare-probe')
+          for name in ('result.txt', 'e2fsck.stdout.txt', 'e2fsck.stderr.txt'):
+              text = (root / name).read_text(errors='replace')
+              if len(text.encode()) > 6000:
+                  text = text[:3000] + '\nTRUNCATED: larger bounded excerpt in artifact; original middle discarded\n' + text[-1000:]
+              print('::notice title=Read-only unshare ' + name + '::' + text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
+          PY
+      - name: Rust disposable 4 GiB normalization feasibility (NO release image)
+        run: |
+          python3 - <<'PY'
+          import shutil
+          if shutil.disk_usage('reports/ready-base').free < 10 * 1024**3:
+              raise SystemExit('Insufficient disk for lab image plus two bounded content dumps')
+          PY
+          cargo run --release --manifest-path core/Cargo.toml -p doxaiz-hardening --bin doxaiz-normalize-experiment -- \
+            --allow-unbooted-experiment reports/ready-base/original.raw reports/ready-base/normalization
+      - name: Publish bounded normalization diagnostics even on refusal
+        if: always()
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('reports/ready-base/normalization')
+          # GitHub caps notices per step. Publish primary verdict first and
+          # group all metadata into ONE notice rather than silently losing it.
+          groups = {
+              'verdict': ['normalization.txt', 'content-comparison.txt', 'resize.exit.txt', 'unshare.exit.txt', 'final-fsck.exit.txt'],
+              'resize': ['resize.stdout.txt', 'resize.stderr.txt'],
+              'unshare': ['unshare.stdout.txt', 'unshare.stderr.txt'],
+              'fsck': ['final-fsck.stdout.txt', 'final-fsck.stderr.txt'],
+              'reviewed-file-metadata': [p.name for p in sorted(root.glob('file-*.txt'))],
+          }
+          for group, names in groups.items():
+              parts = []
+              for name in names:
+                  p = root / name
+                  if p.exists():
+                      text = p.read_text(errors='replace')
+                      if len(text) > 1500:
+                          text = text[:700] + '\n[bounded excerpt]\n' + text[-700:]
+                      parts.append(name + '\n' + text)
+              text = '\n'.join(parts)
+              if text:
+                  print('::notice title=Normalization ' + group + '::' + text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
+          PY
+      - name: Publish bounded audit facts (including on failure)
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          path = Path('reports/ready-base/audit/result.json')
+          summary = ('## Ready upstream candidate — NOT DoxaizOS, NOT a boot test\n'
+                     'A64 is a candidate architecture, NOT confirmed for the user device.\n'
+                     'No publisher signature/independent checksum or security patch level verified.\n')
+          if path.exists():
+              result = json.loads(path.read_text())
+              summary += '\n```json\n' + json.dumps(result, indent=2) + '\n```\n'
+              # API-visible evidence even when artifact storage is inaccessible.
+              print('::notice title=UNTRUSTED GSI container audit::' + json.dumps(result).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
+          else:
+              summary += 'No audit result: download/runner failed; NOT PASS.\n'
+          inspection = Path('reports/ready-base/inspection/result.json')
+          if inspection.exists():
+              result = json.loads(inspection.read_text())
+              summary += '\n## Read-only filesystem inspection (untrusted declarations)\n```json\n' + json.dumps(result, indent=2) + '\n```\n'
+              # GitHub annotations truncate large messages. Keep properties
+              # separate and inventory in small reconstructable path chunks.
+              inventory = result.pop('inventory_by_path', {})
+              result.pop('security_configs_by_path', None)
+              print('::notice title=UNTRUSTED GSI properties::' + json.dumps(result).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
+              # GitHub also caps annotations per step. Deduplicate partition
+              # aliases and publish at most eight small groups (plus two above).
+              groups = {}
+              for path, info in inventory.items():
+                  key = (info['status'], tuple(e['name'] for e in info.get('entries', [])))
+                  groups.setdefault(key, []).append(path)
+              if len(groups) > 8:
+                  raise SystemExit('Too many distinct inventories for complete API evidence; see artifact')
+              for (status, names), paths in groups.items():
+                  record = {'paths': paths, 'status': status, 'names': names,
+                            'scope': 'directory-entry-names-not-APK-IDs'}
+                  text = json.dumps(record)
+                  if len(text.encode()) > 7000:
+                      raise SystemExit('Inventory notice too large; see artifact')
+                  print('::notice title=UNTRUSTED GSI inventory group::' + text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as stream:
+              stream.write(summary)
+          PY
+      - name: Report exact debug and remote configuration (NOT proof of runtime activation)
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('reports/ready-base/inspection/result.json')
+          if path.exists():
+              result = json.loads(path.read_text())
+              for name, info in result.get('security_configs_by_path', {}).items():
+                  text = json.dumps({'path': name, **info})
+                  if len(text.encode()) > 7500:
+                      text = json.dumps({'path': name, 'status': 'notice-too-large-see-artifact'})
+                  print('::notice title=UNTRUSTED GSI security config::' + text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
+          PY
+      - name: Retain small report only, NEVER redistribute unverified image
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ready-base-audit-${{ github.run_id }}
+          path: |
+            reports/ready-base/audit/result.json
+            reports/ready-base/inspection/
+            reports/ready-base/remote-patch/
+            reports/ready-base/image-experiment/result.txt
+            reports/ready-base/unshare-probe/
+            reports/ready-base/normalization/*.txt
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Delete candidate from disposable runner
+        if: always()
+        run: |
+          rm -rf reports/ready-base/normalization/content-dumps
+          rm -f reports/ready-base/candidate.img.gz reports/ready-base/candidate.img.gz.part reports/ready-base/original.raw reports/ready-base/image-experiment/UNBOOTED-NOT-FOR-FLASH.img reports/ready-base/normalization/UNBOOTED-NOT-FOR-FLASH.img

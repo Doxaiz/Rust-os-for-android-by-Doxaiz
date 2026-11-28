@@ -1,0 +1,5 @@
+** MEMINFO in pid 1234 [example.launcher] **
+                   Pss  Private  Private  SwapPss      Rss     Heap     Heap     Heap
+                 Total    Dirty    Clean    Dirty    Total     Size    Alloc     Free
+                ------   ------   ------   ------   ------   ------   ------   ------
+           TOTAL  46100    38000     1000      500    90000    50000    40000    10000

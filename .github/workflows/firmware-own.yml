@@ -1,0 +1,122 @@
+name: Own firmware bundle lab (not reference AOSP)
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Trusted SAME-repository release with bundle.json, images.zip, cvd-host_package.tar.gz, repo-manifest.xml
+        required: true
+        type: string
+      metadata_sha256:
+        description: Expected bundle.json SHA-256 from trusted builder
+        required: true
+        type: string
+  push:
+    branches: ['arena/**', main]
+    paths:
+      - '.github/firmware-lab-request.json'
+      - '.github/workflows/firmware-own.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: own-firmware-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  request:
+    name: Validate request (NOT an OS boot)
+    runs-on: ubuntu-24.04
+    outputs:
+      ready: ${{ steps.request.outputs.ready }}
+      release_tag: ${{ steps.request.outputs.release_tag }}
+      metadata_sha256: ${{ steps.request.outputs.metadata_sha256 }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: request
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          METADATA_SHA256: ${{ inputs.metadata_sha256 }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, re
+          if os.environ['EVENT_NAME'] == 'workflow_dispatch':
+              request = {'release_tag': os.environ['RELEASE_TAG'], 'metadata_sha256': os.environ['METADATA_SHA256']}
+          else:
+              path = pathlib.Path('.github/firmware-lab-request.json')
+              if not path.exists():
+                  with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                      f.write('ready=false\n')
+                  with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
+                      f.write('No own-image request. OS job SKIPPED; this is NOT a firmware test PASS.\n')
+                  raise SystemExit(0)
+              request = json.loads(path.read_text())
+          tag = request['release_tag']
+          sha = request['metadata_sha256']
+          if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,127}', tag):
+              raise SystemExit('Invalid release tag')
+          if not re.fullmatch(r'[0-9a-f]{64}', sha):
+              raise SystemExit('Invalid metadata SHA-256')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f'ready=true\nrelease_tag={tag}\nmetadata_sha256={sha}\n')
+          PY
+  host-prerequisites:
+    name: Host prerequisites ONLY (NOT OS boot)
+    needs: request
+    if: needs.request.outputs.ready != 'true' && github.event.repository.private == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Exercise the own-bundle host installer without downloading images
+        run: |
+          bash scripts/prepare-cuttlefish-host.sh
+          sudo -n -u "$(id -un)" sh -c 'test -r /dev/kvm && test -w /dev/kvm && id'
+          dpkg-query -W cuttlefish-base
+          echo 'Host package/network/KVM setup verified; no image launched, NOT firmware acceptance.' >> "$GITHUB_STEP_SUMMARY"
+  own-os:
+    name: Boot verified own bundle (2 GB)
+    needs: request
+    if: needs.request.outputs.ready == 'true' && github.event.repository.private == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download trusted same-repository build outputs (not stock AOSP)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.request.outputs.release_tag }}
+        run: |
+          mkdir -p reports/incoming
+          gh release download "$RELEASE_TAG" --repo "$GH_REPO" --dir reports/incoming \
+            --pattern bundle.json --pattern images.zip \
+            --pattern cvd-host_package.tar.gz --pattern repo-manifest.xml
+      - name: Check build delivery before modifying host
+        env:
+          METADATA_SHA256: ${{ needs.request.outputs.metadata_sha256 }}
+        run: |
+          python3 scripts/firmware-bundle.py verify --bundle reports/incoming --metadata-sha256 "$METADATA_SHA256"
+      - name: Prepare disposable Cuttlefish host (no image downloads)
+        run: bash scripts/prepare-cuttlefish-host.sh
+      - name: Boot own images and check firmware identity and baseline
+        env:
+          METADATA_SHA256: ${{ needs.request.outputs.metadata_sha256 }}
+          DOXAIZ_CVD_REFRESH_GROUPS: '1'
+        run: bash scripts/boot-firmware-bundle.sh reports/incoming "$METADATA_SHA256" reports/own-firmware
+      - name: Preserve diagnostics, never upload huge images or host tools
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: own-firmware-evidence-${{ github.run_id }}
+          path: |
+            reports/own-firmware/*.txt
+            reports/own-firmware/*.log
+            reports/own-firmware/identity.json
+            reports/own-firmware/firmware-gates/
+            reports/own-firmware/lifecycle/
+            reports/own-firmware/firmware-gates-after-reboot/
+          if-no-files-found: warn
+          retention-days: 7

@@ -1,0 +1,19 @@
+{
+  "scope": "untrusted-container-audit-only",
+  "upstream_filename": "lineage-21.0-20261109-UNOFFICIAL-a64_bvN.img.gz",
+  "upstream_url": "https://sourceforge.net/projects/andyyan-gsi/files/lineage-21-pre-qpr2-td/lineage-21.0-20261109-UNOFFICIAL-a64_bvN.img.gz/download",
+  "run_url": "https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/runs/46160060387",
+  "source_commit": "2c3c283cb2f0ce5f82ae54a999c302cd6059c145",
+  "check_run_id": 141025183391,
+  "conclusion": "success",
+  "observed_compressed_sha256": "7000876dee2b0f6f0814431626c495b0f254b00456c88964dee2a68473b3b146",
+  "compressed_bytes": 859460374,
+  "observed_expanded_sha256": "74d8cc04bd140e173ad5e94e4216bb8769939b4290cd76727f3f877ccf05df08",
+  "expanded_bytes": 1815896064,
+  "gzip_crc_checked": true,
+  "container": "ext4-header",
+  "publisher_authenticated": false,
+  "boot_tested": false,
+  "device_compatible": null,
+  "limitation": "Observed hashes only, not independent publisher authentication. ext4 magic only; filesystem, AVB, properties, patch level and device compatibility NOT validated. Image deleted from disposable runner, not redistributed."
+}

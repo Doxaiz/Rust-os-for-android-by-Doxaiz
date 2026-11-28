@@ -1,0 +1,12 @@
+[package]
+name = "doxaiz-metrics"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "DoxaizOS: парсинг /proc/meminfo и проверка бюджета памяти (≥ 1,0 ГБ MemAvailable, zram)"
+
+[[bin]]
+name = "doxaiz-check"
+path = "src/main.rs"
+
+[dependencies]

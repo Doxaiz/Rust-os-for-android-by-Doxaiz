@@ -1,0 +1,88 @@
+name: Free Cuttlefish reference OS lab
+
+on:
+  push:
+    branches: ['arena/**', main]
+    paths:
+      - '.github/workflows/firmware-reference.yml'
+      - 'scripts/reference-os-test.sh'
+      - 'scripts/check-os-lifecycle.py'
+      - 'scripts/stock-bundle-negative-control.sh'
+      - 'scripts/boot-firmware-bundle.sh'
+      - 'scripts/unpack-firmware.py'
+      - 'scripts/firmware-bundle.py'
+
+permissions:
+  contents: read
+
+jobs:
+  reference-os:
+    # Standard Linux public-repo runner only. No paid/larger/self-hosted machine.
+    if: github.event.repository.private == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check available lab resources
+        run: |
+          test -e /dev/kvm
+          free -h
+          df -h .
+      - name: Boot reference AOSP firmware and test reboot/persistence
+        id: cuttlefish
+        uses: marcprux/cuttlefish-runner@3e65049fd8a2c2745eb41dca3431680be5d5ebbd
+        with:
+          target: aosp_cf_x86_64_only_phone-userdebug
+          cpus: '2'
+          memory-mb: '2048'
+          boot-timeout: '900'
+          disable-animations: 'false'
+          cache: 'false'
+          script: bash scripts/reference-os-test.sh
+      - name: Real STOCK rejection through own-bundle boot path (NOT DoxaizOS)
+        env:
+          REFERENCE_TARGET: ${{ steps.cuttlefish.outputs.target }}
+          REFERENCE_BUILD_ID: ${{ steps.cuttlefish.outputs.build-id }}
+        run: bash scripts/stock-bundle-negative-control.sh
+      - name: Explain own-path failure without huge logs
+        if: failure()
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          root = pathlib.Path('reports/stock-own-path-negative')
+          for name in ('unpack.log', 'launch.log', 'stop.log'):
+              path = root / name
+              if path.exists():
+                  text = path.read_text(errors='replace')[-3000:]
+                  text = text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+                  print(f'::error title=Negative control {name}::{text}')
+          PY
+      - name: Record exact reference build
+        if: always()
+        env:
+          BUILD_ID: ${{ steps.cuttlefish.outputs.build-id }}
+          TARGET: ${{ steps.cuttlefish.outputs.target }}
+        run: |
+          mkdir -p reports/cuttlefish-reference
+          printf 'reference_build_id=%s\nreference_target=%s\n' "$BUILD_ID" "$TARGET" > reports/cuttlefish-reference/build.txt
+          {
+            echo '## Free Cuttlefish infrastructure test — reference AOSP, NOT DoxaizOS'
+            cat reports/cuttlefish-reference/build.txt
+            if [ -f reports/cuttlefish-reference/result.txt ]; then
+              cat reports/cuttlefish-reference/result.txt
+            else
+              echo 'No successful reference OS result. Check failed steps.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain reference OS evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cuttlefish-reference-${{ github.run_id }}
+          path: |
+            reports/cuttlefish-reference/
+            reports/stock-own-path-negative/*.txt
+            reports/stock-own-path-negative/*.log
+            reports/stock-own-path-negative/identity.json
+            reports/stock-own-path-negative/firmware-gates/
+          retention-days: 3

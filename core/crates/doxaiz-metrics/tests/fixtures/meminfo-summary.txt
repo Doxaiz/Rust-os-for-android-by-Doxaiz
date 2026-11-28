@@ -1,0 +1,7 @@
+ App Summary
+                       Pss(KB)                        Rss(KB)
+                        ------                         ------
+           Java Heap:    10000                          20000
+         Native Heap:    20000                          30000
+           TOTAL RSS:    90000
+           TOTAL PSS:    50000            TOTAL RSS:    90000       TOTAL SWAP PSS:      500

@@ -1,0 +1,82 @@
+# DoxaizOS — честный статус проекта
+
+> Обновлено: 2026-11-23. Этот файл — ответ на вопрос «насколько готова DoxaizOS?» без приукрашивания. Правило проекта: «готово» = проверено прогоном, а не написано.
+
+## Актуальный маршрут
+
+По запросу пользователя приоритет изменён: **готовая LineageOS/TrebleDroid Vanilla → проверка исходного ROM → минимальная адаптация с существующим Doxaiz Launcher**. [Кандидаты и ограничения](BASE-SELECTION.md). Собственная Android 17-сборка и новые Rust-службы больше не блокируют начало оценки готовой базы. Это изменение плана, не появление проверенной прошивки: A64 Vanilla кандидат загружен и прошёл контейнерный аудит (46160060387) и read-only FS inspection (46162262586): Android 14/SDK34, заявлен patch 2026-11-01, ARM32 runtime. Не установлен/не загружен; RAM/скорость не измерены.
+
+[Состав готовой базы и минимальная адаптация](READY-BASE-ADAPTATION.md): реальный run 46166414296 SUCCESS, имена модулей app/priv-app и init entries извлечены без mount/boot. TrebuchetQuickStep/LineageSetupWizard отличаются от прежнего AOSP-эксперимента; ничего не удалено и ускорение не заявлено.
+
+**Security blocker готовой базы:** run 46169653206 извлёк remote-support конфигурации (TCP ADB + reverse SSH). Активность не проверена; неизменённый image не одобрен для финальной установки. [Наблюдения и условия допуска](READY-BASE-SECURITY.md). Это не доказательство заражения и не уже исправленный hardened image.
+
+**Rust-first:** новый PSI parser и одноразовый CLI реализованы в doxaiz-metrics без новых dependencies/resident service; CI 46170363841 SUCCESS (cargo tests + release smoke). Это диагностический компонент, не ускорение ROM, не Android-target build и не исправление remote/debug blocker. [Методика и ограничения](PERFORMANCE.md).
+
+Rust hardening preparation: run 46171662508 SUCCESS — release-инструмент создал проверенные замены двух remote-support файлов из реального образа. **В system.img они ещё не применены**, security blocker не снят; [evidence/ограничения](READY-BASE-SECURITY.md).
+
+Попытка Rust image edit 46173065193 **отказала до записи**: у prebuilt ext4 shared_blocks. Изменённый образ не создан; guard не обходился. [Причина и следующий безопасный этап](READY-BASE-SECURITY.md).
+
+Read-only unshare feasibility: run 46178504921 записал диагностику успешно, но e2fsck dry-run exit 4 — не удалось выделить блоки для полного unshare. SHA исходника неизменен; normalized/modified image не создан. [Точные наблюдения](READY-BASE-SECURITY.md), не путать SUCCESS workflow со снятием blocker.
+
+**Новый положительный результат — только host layout:** run 46179580865 SUCCESS. Rust-инструмент на отдельной 4 GiB копии выполнил resize2fs → unshare → финальный read-only fsck exit 0; shared_blocks снят штатным unshare, исходный SHA неизменен. Содержимое двух reviewed файлов сохранено, но полная сверка всех файлов/metadata отсутствует. Копия удалена, hardening не применён, boot/partition fit не проверены. [Evidence](evidence/normalization-46179580865.json). Это снимает host-техническое препятствие для следующего эксперимента, **не security blocker ROM**. Готовность пока **25–30%**.
+
+**Расширенная проверка содержимого:** run 46180893633 SUCCESS — Rust сравнил inode identities/sizes и побайтово **5474 обычных файла / 2033029986 bytes** исходника и нормализованной копии. Различий нет; copy/dumps удалены. Directory entries/symlinks/special files/все metadata/xattrs пока не покрыты, hardening не применён. [Evidence](evidence/regular-content-46180893633.json). Это не полный manifest и не boot; **25–30%**.
+
+## Три уровня готовности
+
+| Уровень | Состояние | Пояснение |
+|---|---|---|
+| 1. Спроектировано и написано (репозиторий) | **инвентаризация, не процент** | docs, overlay, CI, Rust-инструментарий, манифест, скрипты |
+| 2. Образ ОС собирается и запускается | **0%** | ни одного образа (Cuttlefish/GSI/device) не собрано |
+| 3. Работает на телефоне у пользователя | **0%** | не прошивалось и не тестировалось на железе |
+
+Проценты выше — субъективные оценки объёма работ, не измеренная готовность. Сводная оценка до релиза 1.0: **~25–30%**.
+
+## Статус по областям
+
+| Область | Статус | Что проверено | Что нужно для «✅» |
+|---|---|---|---|
+| Исследование (RESEARCH, RUST-OSES, GSI) | 🔬 | Собраны ссылки на исследования; часть сведений об устройствах взята из агрегаторов и требует проверки по официальной wiki | — (поддерживаться актуальность) |
+| Архитектура и бюджеты (ARCHITECTURE, PERFORMANCE) | 📄 | цифры согласованы между README/доки/`doxaiz-metrics` (400 мс / 5 % / 16 мс / 60 МБ / 1,0 ГБ / 220 МБ) | замеры на Cuttlefish и железе (Этап 4) |
+| Документация (весь `docs/`) | ✅ | `check-docs-links.py`: локальные ссылки, 0 битых; внешние URL и достоверность утверждений этим не проверяются | — |
+| Overlay `doxaiz_base.mk` (per-device/Cuttlefish) | 📄 | синтаксис makefile; пакеты/свойства по документации AOSP | `lunch <target> && m` на ПК (Этапы 2–3) |
+| Overlay `doxaiz_gsi.mk` + `AndroidProducts.mk` (GSI) | 📄 | `gsi_arm64` наследование сверено по исходникам LOS lineage-24.0 и `build/make/core/board_config.mk`; `PRODUCT_ENFORCE_ARTIFACT_PATH_REQUIREMENTS=relaxed` по образцу mgsi/* | GSI-сборка на ПК ≥ 32 ГБ ОЗУ (Этап 5, 5-GSI) |
+| Локальный манифест (`manifest/doxaiz.xml`) | 📄 | XML разбирается; совместимость удалений с полной Android-сборкой ещё не проверена | — |
+| Rust workspace `doxaiz-perf` | ✅ | unit-тесты (в CI), граничные значения zram/heap | — |
+| Rust workspace `doxaiz-metrics` | ✅ | Парсеры meminfo/am-start/gfxinfo/meminfo-pkg; добавлены 5 regression-тестов PSS по форматам ActivityThread Android 15/16 (синтетические фикстуры, не логи телефона); бюджеты машинно-проверяемы | проверка на устройстве (Этапы 3–5) |
+| doxaiz-xtask `verify` | ✅ | 32/32 маркера в CI | — |
+| CI (GitHub Actions, 5 джобов) | ✅ | Rust test+verify, Scripts, Docs, Launcher APK (информативно), настоящий Android Emulator (push) | — |
+| Скачивание релизного APK лаунчера + sha256 | ✅ | Реальный downloader прошёл в CI run 46143688143; 26 offline-сценариев; обход checksum запрещён в build.sh; сертификат подписи не проверяется | отдельно проверить идентичность signing key |
+| Launcher на штатном Android Emulator | ✅ | API 29 / x86_64 / 2048 МБ: install, HOME, resumed Activity, PID и сбор диагностики; [доказательство](EMULATOR-RESULT.md) | не заменяет проверку системного образа |
+| Явный выбор HOME после settled reboot, modified stock | ✅ узкий эксперимент | Run 46157465718 SUCCESS: после удаления XML и 20 с writeback ожидания выбор Doxaiz, затем stock launcher переживает reboot; роль повторно не назначается | Не начальный HOME своего образа, не immediate power-loss durability; повторяемость отдельно |
+| Doxaiz Launcher как начальный HOME в образе | 📄, найден реальный blocker | На modified stock AOSP XML preferred-apps не выбрал Doxaiz после Provision: оба launcher priority=0, chooser. XML убран из продукта. Для CF добавлен source patch Launcher3 HOME priority=-1, применён к точным LOS-исходникам; Doxaiz APK не меняется | Собрать наш образ, проверить начальный HOME без ADB назначения, recents, fallback и сохранность пользовательского выбора |
+| Cuttlefish: эталонная ОС | ✅ инфраструктура, не DoxaizOS | Бесплатный public CI: AOSP boot/SELinux/services/reboot/userdata, [run 46146936541](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/runs/46146936541), 4096 МБ; повтор [2048 МБ SUCCESS](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/runs/46147167478) | Собрать и отдельно запустить наш комплект; [ограничения стенда](FIRMWARE-LAB.md) |
+| Собственный Cuttlefish-продукт и доставка | 📄 | Зарегистрирован doxaiz_cf_x86_64_phone, mixed Make/Soong overrides; GNU Make-фикстура. Export/verify bundle: независимая build identity, SHA-256, pinned manifest; синтетические ZIP | Настоящие lunch/m, собственные артефакты и положительный boot; CI-путь bundle добавлен, stock negative control + cleanup [46150286844 SUCCESS](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/runs/46150286844); своей заявки/образа нет |
+| Reboot/persistence своей VM | 📄 код, не реальный own-image PASS | Общий check-os-lifecycle.py: UUID ядра + boot_count, случайный userdata marker, службы/SELinux/fingerprint continuity, raw PSI/swap/ZRAM до/после; 18 synthetic lifecycle cases + guards. Own runner повторяет независимые firmware gates после reboot | Новая версия прошла на эталоне: run 46155232856 SUCCESS (не DoxaizOS); далее требуется свой образ. 19 локальных unittest methods не являются загрузкой ОС |
+| GSI на реальном телефоне + DSU | ❌ | — | совместимый Treble-телефон с доступным DSU (не гарантируется для каждой модели); [GSI.md](GSI.md) §4–5 |
+| Per-device порт (3–4 ГБ low-end) | ❌ | — | Xperia XA2 / Redmi Note 9/10S / Redmi 12C — [DEVICES.md](DEVICES.md) §7 |
+| Подписанный OTA-релиз | 📄 | 8 offline-сценариев `ota.sh`: full/incremental, ключ, ошибки инструмента и ZIP, защита исходных файлов и сохранность старого OTA; реальные подписи и payload не проверены ([OTA.md](OTA.md)) | ключи + прогон `ota_from_target_files` на реальном дереве (Этап 7) |
+| Rust Binder-сервис (`doxaiz-sys`) | 🔬 | исследование rsbinder завершено (см. RESEARCH §2.2, ROADMAP этап 6) | выбор библиотеки + прототип + интеграция |
+| Чистые Rust-ОС (Asterinas/moss/BlueOS и др.) | 🔬 | исследование [RUST-OSES.md](RUST-OSES.md) | — (не блокирует 1.0) |
+
+**Условные обозначения:** ✅ проверено прогоном · 📄 написано, не проверено прогоном · 🔬 исследование · ❌ нет
+
+## Изменения этого файла — через PR
+
+Правки STATUS.md — только с изменением фактов («📄 → ✅» допустимо только при приложенном логе прогона/скриншоте/CI).
+
+## Проверка текущей среды (2026-11-23)
+
+`bash scripts/preflight.sh .` завершился кодом 1: около 3 ГБ ОЗУ и 20 ГБ свободного диска; `/dev/kvm` отсутствует. В этой среде полная сборка Android и KVM-запуск Cuttlefish не выполнены.
+
+Основной `build.sh` проверен в 10 offline-сценариях с подменёнными repo/envsetup/сетью; это подтверждает оркестрацию, но не совместимость Android-продукта или работоспособность образа. Сводная оценка готовности к релизу остаётся **~25–30%**.
+
+Проверка сборочного продукта усилена: до `m` проверяются вычисленные модуль Launcher и свойства DoxaizOS. Это fail-fast конфигурации, а не доказательство состава конечного образа. На предыдущем этапе набор скриптов — 67 offline-сценариев; результаты реальной загрузки ОС отсутствуют.
+
+## Настоящий Android Emulator (отдельно от прошивки)
+
+Добавлен CI-job Android Emulator API 29 / x86_64 / 2048 МБ RAM с KVM на GitHub runner. Он устанавливает релизный Launcher, проверяет HOME/resumed Activity и сохраняет скриншот/логи. История и ограничения — [EMULATION.md](EMULATION.md). Это тест приложения на штатном Android, не сборка или загрузка образа DoxaizOS и не проверка Redmi 9A. Подтверждены успешные push-прогоны af60d6b и 2562957. Доказательства, artifact digest и границы результата — [EMULATOR-RESULT.md](EMULATOR-RESULT.md). Повышение оценки за Launcher-тест отозвано: он не подтверждает прогресс прошивки. Общая оценка прошивки остаётся ~25–30%; сборка прошивки не выполнена.
+
+## Проверка именно прошивки
+
+Исследована [лаборатория Cuttlefish/acloud и варианты машин](FIRMWARE-LAB.md), отдельно для сборки и запуска. Добавлен `check-firmware.py`: проверяет идентичность ожидаемой сборки, системное расположение пакета, low-RAM, SELinux и core services, не устанавливая APK и не меняя HOME. 13 offline-сценариев, общий набор — 80. Реальный запуск DoxaizOS этим не подтверждён. В emulator-smoke добавлен отрицательный контроль: штатный AVD должен отвергаться как не-DoxaizOS; отрицательный контроль подтверждён в [CI run 46146279694](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/runs/46146279694). Это проверка отказа на чужой ОС, не положительный запуск нашей прошивки.

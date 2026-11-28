@@ -1,0 +1,9 @@
+[package]
+name = "doxaiz-xtask"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "DoxaizOS: инструментарий — верификация репозитория, генерация low-RAM build.prop"
+
+[dependencies]
+doxaiz-perf = { path = "../doxaiz-perf" }
