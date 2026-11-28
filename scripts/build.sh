@@ -148,7 +148,38 @@ if 'ro.config.low_ram=true' not in properties or not any(
     raise SystemExit('Ошибка: в продукте нет low-RAM свойств/версии DoxaizOS; проверьте наследование doxaiz_base.mk')
 PYPRODUCT
 phase=compile
-m -j"$(nproc)"
+case "$LUNCH_TARGET" in
+    doxaiz_cf_x86_64_phone-*)
+        # Fresh dist prevents silently selecting leftovers from an older build.
+        mkdir "$EVIDENCE/dist"
+        DIST_DIR="$EVIDENCE/dist" m -j"$(nproc)" dist dist_files target-files-package updatepackage hosttar
+        phase=package-own-bundle
+        python3 - "$EVIDENCE" "$REPO_ROOT" <<'PYDIST'
+import json
+from pathlib import Path
+import subprocess
+import sys
+output, root = map(Path, sys.argv[1:])
+dist = output / 'dist'
+def one(pattern):
+    candidates = list(dist.glob(pattern))
+    if len(candidates) != 1 or not candidates[0].is_file() or candidates[0].is_symlink():
+        raise SystemExit('Expected exactly one regular dist artifact: ' + pattern)
+    return candidates[0]
+images = one('doxaiz_cf_x86_64_phone-img*.zip')
+target_files = one('doxaiz_cf_x86_64_phone-target_files*.zip')
+host = one('cvd-host_package.tar.gz')
+source = json.loads((output / 'source-evidence.json').read_text())
+subprocess.run([sys.executable, str(root / 'scripts/firmware-bundle.py'), 'export',
+                '--images', str(images), '--target-files', str(target_files),
+                '--host-tools', str(host), '--repo-manifest', str(output / 'repo-manifest.xml'),
+                '--source-commit', source['doxaiz_commit'], '--output', str(output / 'bundle')],
+               check=True)
+print('Delivery bundle (NOT boot acceptance):', output / 'bundle')
+PYDIST
+        ;;
+    *) m -j"$(nproc)" ;;
+esac
 phase=build-command-completed
 
 echo "=== Готово. Артефакты: ${TREE}/out/target/product/ ==="

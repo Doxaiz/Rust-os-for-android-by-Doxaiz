@@ -294,3 +294,12 @@ Run **46156874323 FAILURE**: фаза удаления XML достигнута 
 По сравнению с run 46156874323 последняя версия добавила 20 с settle, preferred dumps и sync перед reboot; это согласуется с найденной delayed-write механикой, но **один успешный последовательный прогон не доказывает единственную причину прежнего отказа**. Сырые значения dumps в этой сессии не скачаны/не проанализированы; утверждение опирается на SUCCESS всего fail-closed shell step. Повторяемость ещё требует независимых прогонов.
 
 Это первый подтверждённый положительный результат **обоих explicit choices после settled reboot** в данном modified-stock эксперименте. Он не реабилитирует XML initial-default, не подтверждает immediate reboot/power-loss durability, не проверяет source-патч priority=-1, собственную сборку или Redmi. Производственный initial-HOME gate не назначает роль командами ADB и остаётся непройденным на собственном образе. Готовность DoxaizOS: **25–30%**.
+
+
+### Явная сборка пакета доставки Cuttlefish
+
+Для собственного CF target build.sh больше не ограничивается голым `m`: он запрашивает `dist dist_files target-files-package updatepackage hosttar` с новым пустым DIST_DIR внутри текущего evidence-каталога. Точные upstream правила сверены по LineageOS android_build 90d006387398ae6899145e6531a304500cfa0f70 и AOSP device/google/cuttlefish android-17.0.0_r1: image ZIP строится из target-files, hosttar создаёт host package, его dist привязан к dist_files (поэтому цель указана явно).
+
+Затем скрипт требует однозначный полный комплект и вызывает существующий export с identity из target-files, pinned manifest текущего запуска и Doxaiz commit из pre-build evidence. Нехватка host tools, несколько image ZIP, target-files без Doxaiz identity/Launcher — FAIL в package-own-bundle фазе. Произвольный stock download и fallback на старый out/dist не предусмотрены. Non-CF targets не меняют поведение.
+
+Это закрывает ручной разрыв «m закончился, но для лаборатории нет пакета» **на уровне кода**, не результат реальной компиляции. Проверены synthetic packaging success/missing/ambiguous/wrong-identity cases; настоящий lunch/m/dist и boot собственного образа пока отсутствуют. Общая готовность 25–30%. Для следующего реального этапа всё ещё нужен подходящий бесплатный build host; подтверждённый test host не обладает доказанными ресурсами полной Android-сборки.

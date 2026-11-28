@@ -259,7 +259,17 @@ python3 -m unittest discover -s scripts/tests -v
 
 ## 12. Доставка собственной сборки на бесплатный тест-хост
 
-После успешной сборки нужно получить image ZIP, `cvd-host_package.tar.gz` и target-files ZIP **одной сборки**. Конкретные dist-цели надо проверить в выбранном Android-дереве; один успешный `m` не обещает наличие всех трёх файлов. Инструмент ниже не собирает их и не подменяет отсутствующие артефакты stock-образами.
+Для Cuttlefish target `doxaiz_cf_x86_64_phone-*` `build.sh` теперь запускает явные цели:
+
+```bash
+DIST_DIR="$EVIDENCE/dist" m -j"$(nproc)" dist dist_files target-files-package updatepackage hosttar
+```
+
+`EVIDENCE` — новый уникальный каталог текущей сборки, dist изначально пуст. `updatepackage` создаёт image ZIP из target-files; `target-files-package` экспортирует target-files; Cuttlefish `hosttar` строит host package, а `dist_files` явно включает его dist-правило. После exit 0 требуются ровно один `doxaiz_cf_x86_64_phone-img*.zip`, один `doxaiz_cf_x86_64_phone-target_files*.zip` и обычный файл `cvd-host_package.tar.gz`. Отсутствие, symlink или неоднозначный набор — отказ, без выбора «самого нового» старого файла. Далее штатный `firmware-bundle.py export` проверяет target-files identity и создаёт `$EVIDENCE/bundle` с хешами и manifest. Содержимое dist и source evidence нужно сохранять вместе; target-files не копируется в bundle, но остаётся в dist.
+
+Цели сверены с [build/core/Makefile](https://github.com/LineageOS/android_build/blob/90d006387398ae6899145e6531a304500cfa0f70/core/Makefile) и [Cuttlefish cvd-host-package.go android-17.0.0_r1](https://github.com/aosp-mirror-neo/device_google_cuttlefish/blob/android-17.0.0_r1/build/cvd-host-package.go). **Новая полная команда не выполнена на Android-дереве**: проверена только fake-m оркестрация. Соответствие конкретной Soong/Make интеграции ещё требует настоящей сборки. Non-Cuttlefish targets сохраняют прежний обычный `m`, без попыток упаковать их как Cuttlefish.
+
+Ниже сохранён ручной export для уже имеющихся артефактов одной доверенной сборки. Он ничего не компилирует и не подменяет отсутствующие артефакты stock-образами.
 
 В Android-дереве сохраните pinning после завершённого sync:
 

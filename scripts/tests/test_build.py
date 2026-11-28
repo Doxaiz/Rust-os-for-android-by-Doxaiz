@@ -61,8 +61,22 @@ function lunch() {
 }
 function m() {
     echo "m $*" >> "$BUILD_CALLS"
-    [ "$BUILD_CASE" != build_failure ]
+    [ "$BUILD_CASE" != build_failure ] || return 1
+    if [[ "$*" == *hosttar* ]]; then
+        cp "$CF_IMAGES" "$DIST_DIR/doxaiz_cf_x86_64_phone-img-fixture.zip"
+        cp "$CF_TARGET_FILES" "$DIST_DIR/doxaiz_cf_x86_64_phone-target_files-fixture.zip"
+        if [ "$BUILD_CASE" != cf_source_dist_missing ]; then
+            printf fixture-host > "$DIST_DIR/cvd-host_package.tar.gz"
+        fi
+        if [ "$BUILD_CASE" = cf_source_dist_ambiguous ]; then
+            cp "$CF_IMAGES" "$DIST_DIR/doxaiz_cf_x86_64_phone-img-stale.zip"
+        fi
+        if [ "$BUILD_CASE" = cf_source_dist_identity ]; then
+            cp "$CF_IMAGES" "$DIST_DIR/doxaiz_cf_x86_64_phone-target_files-fixture.zip"
+        fi
+    fi
 }
+
 ''')
 else:
     raise AssertionError(sys.argv)
@@ -74,7 +88,8 @@ class BuildTests(unittest.TestCase):
         for mode in ('relative', 'absolute', 'existing_tree', 'sync_failure',
                      'lunch_failure', 'build_failure', 'missing_launcher',
                      'missing_properties', 'dumpvar_failure', 'unverified_apk',
-                     'cf_source_missing', 'cf_source_ok', 'manifest_failure', 'unpinned_manifest', 'diff_failure'):
+                     'cf_source_missing', 'cf_source_ok', 'cf_source_dist_missing', 'cf_source_dist_ambiguous',
+                     'cf_source_dist_identity', 'manifest_failure', 'unpinned_manifest', 'diff_failure'):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory(prefix='build test ') as tmp:
                 root = Path(tmp)
                 bindir = root / 'bin'
@@ -90,16 +105,25 @@ class BuildTests(unittest.TestCase):
                 tree = root / 'android tree'
                 if mode == 'existing_tree':
                     (tree / '.repo').mkdir(parents=True)
-                if mode == 'cf_source_ok':
+                if mode in ('cf_source_ok', 'cf_source_dist_missing', 'cf_source_dist_ambiguous', 'cf_source_dist_identity'):
                     launcher = tree / 'packages/apps/Launcher3'
                     (launcher / 'quickstep').mkdir(parents=True)
                     for name in ('AndroidManifest.xml', 'quickstep/AndroidManifest-launcher.xml'):
                         (launcher / name).write_text(MANIFEST)
+                cf_images = root / 'images.zip'
+                cf_target = root / 'target-files.zip'
+                with zipfile.ZipFile(cf_images, 'w') as archive:
+                    archive.writestr('system.img', 'synthetic image')
+                with zipfile.ZipFile(cf_target, 'w') as archive:
+                    archive.writestr('SYSTEM/build.prop',
+                                     'ro.build.fingerprint=fixture/doxaiz/test\nro.doxaiz.version=0.1.0\nro.config.low_ram=true\n')
+                    archive.writestr('SYSTEM/app/DoxaizLauncher/DoxaizLauncher.apk', 'synthetic apk')
                 build_calls = root / 'build-calls'
                 env = dict(os.environ, PATH=str(bindir) + ':' + os.environ['PATH'],
                            CASE='checksum_missing' if mode == 'unverified_apk' else 'valid',
                            DOXAIZ_ALLOW_UNVERIFIED_APK='1',
                            BUILD_CASE=mode, BUILD_CALLS=str(build_calls),
+                           CF_IMAGES=str(cf_images), CF_TARGET_FILES=str(cf_target),
                            CALLS=str(root / 'network-calls'), FIXTURE=str(fixture),
                            HASH=hashlib.sha256(fixture.read_bytes()).hexdigest())
                 target = str(tree) if mode == 'absolute' else 'android tree'
@@ -125,6 +149,12 @@ class BuildTests(unittest.TestCase):
                     self.assertEqual(hashlib.sha256((evidence / 'source-diff.patch').read_bytes()).hexdigest(),
                                      metadata['sha256']['source-diff.patch'])
                     self.assertEqual(json.loads((evidence / 'result.json').read_text())['build_exit_code'], 0)
+                    if mode == 'cf_source_ok':
+                        self.assertTrue((evidence / 'bundle/bundle.json').is_file())
+                        self.assertTrue(any('dist dist_files target-files-package updatepackage hosttar' in line for line in trace))
+                    else:
+                        self.assertFalse((evidence / 'bundle').exists())
+
 
                     self.assertTrue((tree / 'vendor/doxaiz/products/doxaiz_base.mk').is_file())
                     self.assertEqual((tree / 'vendor/doxaiz/apps/DoxaizLauncher/DoxaizLauncher.apk').read_bytes(),
@@ -136,7 +166,7 @@ class BuildTests(unittest.TestCase):
                     if evidence_dirs:
                         status = json.loads((evidence_dirs[0] / 'result.json').read_text())
                         self.assertNotEqual(status['build_exit_code'], 0)
-                        self.assertIn(status['last_phase'], ('source-evidence', 'lunch', 'product-gates', 'compile'))
+                        self.assertIn(status['last_phase'], ('source-evidence', 'lunch', 'product-gates', 'compile', 'package-own-bundle'))
 
                 if mode in ('sync_failure', 'lunch_failure', 'missing_launcher',
                             'missing_properties', 'dumpvar_failure', 'unverified_apk', 'cf_source_missing',
