@@ -1,0 +1,69 @@
+name: Ready Vanilla base audit (NOT DoxaizOS boot)
+
+on:
+  push:
+    branches: ['arena/**', main]
+    paths:
+      - '.github/workflows/ready-base.yml'
+      - 'scripts/audit-ready-gsi.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ready-base-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    if: github.event.repository.private == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Obtain exact upstream A64 Vanilla CANDIDATE, not latest or a flash recommendation
+        run: |
+          mkdir -m 700 -p reports/ready-base
+          # Fixed upstream path. No secrets, root, mounts, image execution or flash.
+          # Publisher hash/signature is NOT independently known: this is quarantine.
+          curl --fail --location --proto '=https' --proto-redir '=https' \
+            --connect-timeout 20 --max-time 900 --max-filesize 2147483648 \
+            --output reports/ready-base/candidate.img.gz.part \
+            'https://sourceforge.net/projects/andyyan-gsi/files/lineage-21-pre-qpr2-td/lineage-21.0-20261109-UNOFFICIAL-a64_bvN.img.gz/download'
+          mv reports/ready-base/candidate.img.gz.part reports/ready-base/candidate.img.gz
+      - name: Audit compressed stream and header, NOT integrity attestation or compatibility
+        run: |
+          python3 scripts/audit-ready-gsi.py \
+            --image reports/ready-base/candidate.img.gz --output reports/ready-base/audit
+      - name: Publish bounded audit facts (including on failure)
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          path = Path('reports/ready-base/audit/result.json')
+          summary = ('## Ready upstream candidate — NOT DoxaizOS, NOT a boot test\n'
+                     'A64 is a candidate architecture, NOT confirmed for the user device.\n'
+                     'No publisher signature/independent checksum or security patch level verified.\n')
+          if path.exists():
+              result = json.loads(path.read_text())
+              summary += '\n```json\n' + json.dumps(result, indent=2) + '\n```\n'
+              # API-visible evidence even when artifact storage is inaccessible.
+              print('::notice title=UNTRUSTED GSI container audit::' + json.dumps(result).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
+          else:
+              summary += 'No audit result: download/runner failed; NOT PASS.\n'
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as stream:
+              stream.write(summary)
+          PY
+      - name: Retain small report only, NEVER redistribute unverified image
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ready-base-audit-${{ github.run_id }}
+          path: reports/ready-base/audit/result.json
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Delete candidate from disposable runner
+        if: always()
+        run: rm -f reports/ready-base/candidate.img.gz reports/ready-base/candidate.img.gz.part
