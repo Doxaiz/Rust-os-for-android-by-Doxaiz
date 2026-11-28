@@ -61,6 +61,26 @@ jobs:
             --image reports/ready-base/candidate.img.gz \
             --observed-sha256 7000876dee2b0f6f0814431626c495b0f254b00456c88964dee2a68473b3b146 \
             --output reports/ready-base/inspection
+      - name: Prepare Rust two-file patch from actual extracted configs (NO image modification)
+        run: |
+          cargo --version
+          cargo run --release --manifest-path core/Cargo.toml -p doxaiz-hardening --bin doxaiz-harden-remote -- \
+            reports/ready-base/inspection/
+            reports/ready-base/remote-patch/system-etc-init-phh-remotectl.rc.txt \
+            reports/ready-base/inspection/
+            reports/ready-base/remote-patch/system-bin-phh-remotectl.sh.txt \
+            reports/ready-base/remote-patch
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          root = Path('reports/ready-base/remote-patch')
+          facts = {'scope': 'two-file-host-patch-only', 'image_modified': False,
+                   'boot_tested': False, 'runtime_security_verified': False,
+                   'files': {p.name: {'sha256': hashlib.sha256(p.read_bytes()).hexdigest(),
+                                      'text': p.read_text()} for p in sorted(root.iterdir())}}
+          (root / 'result.json').write_text(json.dumps(facts, indent=2) + '\n')
+          print('::notice title=Rust remote patch prepared NOT applied::' + json.dumps(facts).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
+          PY
       - name: Publish bounded audit facts (including on failure)
         if: always()
         run: |
@@ -128,6 +148,7 @@ jobs:
           path: |
             reports/ready-base/audit/result.json
             reports/ready-base/inspection/
+            reports/ready-base/remote-patch/
           if-no-files-found: warn
           retention-days: 7
       - name: Delete candidate from disposable runner

@@ -16,6 +16,7 @@ members = [
     "crates/doxaiz-perf",
     "crates/doxaiz-xtask",
     "crates/doxaiz-metrics",
+    "crates/doxaiz-hardening",
 ]
 
 [workspace.package]
