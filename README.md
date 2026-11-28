@@ -4,14 +4,20 @@
 
 # DoxaizOS
 
-**Самая лёгкая мобильная ОС для Android-телефонов: минимум ос, максимум свободной памяти.**
-Android-база (LineageOS/AOSP slim) · low-RAM профиль в духе Android Go · рабочий стол — [Doxaiz Launcher](https://github.com/Doxaiz/Doxaiz-android-launcher-) · весь новый системный код — на Rust · **планируется GSI-поставка для совместимых устройств; готового проверенного образа пока нет**.
+**Проект облегчённой Android-системы для маломощных телефонов.**
+Android-база (LineageOS/AOSP slim) · low-RAM профиль в духе Android Go · рабочий стол — [Doxaiz Launcher](https://github.com/Doxaiz/Doxaiz-android-launcher-) · Rust-инструментарий — экспериментальный, не условие готовой базы · **планируется GSI-поставка для совместимых устройств; готового проверенного образа пока нет**.
 
 [![CI](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/workflows/ci.yml/badge.svg)](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/workflows/ci.yml)
 [![Лицензия](https://img.shields.io/badge/лицензия-MIT-blue)](LICENSE)
 [![База](https://img.shields.io/badge/AOSP-17%20(LineageOS%2024.0)-3ddc84?logo=android&logoColor=white)](docs/BUILD.md)
 
 </div>
+
+## Основное направление: готовая лёгкая база
+
+По решению пользователя сначала используем **готовую LineageOS/TrebleDroid Vanilla**, проверяем её на целевом устройстве и только затем добавляем минимальный слой DoxaizOS с существующим Doxaiz Launcher. Не разрабатываем Android заново и не делаем новые Rust-службы условием первой рабочей версии. Pixel-подобный интерфейс не является доказательством скорости на 2 ГБ RAM.
+
+**[Выбор базы и сравнение вариантов](docs/BASE-SELECTION.md)**: основной кандидат для оценки — готовая LineageOS Vanilla; точная версия/ABI/образ ещё требуют проверки. Сохранённый Android 17/LineageOS 24.0 build path — экспериментальная лаборатория, не выбранный готовый Redmi ROM. Готовый совместимый образ пока не скачан и не проверен.
 
 ## Проверенный текущий результат
 
