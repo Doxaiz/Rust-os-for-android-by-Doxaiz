@@ -3,6 +3,7 @@
 ## [Unreleased] — 2026-11-23
 
 ### Added
+* `scripts/collect-device.sh`: явный ADB serial, проверка загрузки/пакета, сбор сырых meminfo/PSS/gfxinfo и контекста без root/force-stop/прошивки; timeout 30 с на команду, приватный каталог, защита от перезаписи и неполных отчётов. 7 offline-сценариев, инструкция в PERFORMANCE.md, reports/ исключён из git. Реальных диагностических данных пока нет.
 * `coldstart`: по AOSP Android 15/16 добавлены Status/LaunchState и распознавание ошибок/повторного использования Activity. Timeout/ошибка — FAIL, warm/hot/неизвестное состояние — Unknown; быстрый TotalTime + Complete больше не подтверждает холодный старт сам по себе. 2 unit-теста и CLI-тест с 7 сценариями; примеры и источники в PERFORMANCE.md.
 * `doxaiz-check`: Unknown теперь даёт код 2 вместо ложного успеха; FAIL сохраняет код 1. Для gfxinfo пустая выборка кадров, NaN/Inf/отрицательные метрики не проходят бюджет. Проверено поведение нулевой выборки в AOSP ProfileData.cpp; добавлены 2 unit-теста и 4 CLI integration-теста (12 сценариев).
 * `doxaiz-metrics`: по исходникам ActivityThread Android 15/16 исправлен PSS-парсер — поддержка таблицы `TOTAL` без двоеточия и сводки `TOTAL PSS:`, исключение RSS/SWAP, приоритет явной PSS-сводки. Добавлены 5 regression-тестов и 2 синтетические source-derived фикстуры с происхождением; это не замеры устройства.

@@ -176,3 +176,26 @@ Complete
 ```
 
 Формат и предупреждения сверены 2026-11-23 через GitHub API с `ActivityManagerShellCommand.java`: [Android 15](https://github.com/aosp-mirror/platform_frameworks_base/blob/android-15.0.0_r1/services/core/java/com/android/server/am/ActivityManagerShellCommand.java) (blob `bbd432340e8f559d513da79207d8de92fa0020aa`) и [Android 16](https://github.com/aosp-mirror/platform_frameworks_base/blob/android-16.0.0_r1/services/core/java/com/android/server/am/ActivityManagerShellCommand.java) (blob `5c2bd0a0e90f807cba524de2448e61216a60f282`). Наличие `Complete` само по себе не исключает timeout. Подтверждение `COLD` относится к запуску процесса/Activity, а не к очистке дисковых кэшей или репрезентативности серии измерений.
+
+## Сбор диагностических файлов с выбранного устройства
+
+```bash
+adb devices -l
+# Замените SERIAL идентификатором из adb devices; запуск на Linux-хосте:
+bash scripts/collect-device.sh SERIAL reports/session-001
+
+# Проверка файлов из корня репозитория (не запускает команды на телефоне):
+cargo run --manifest-path core/Cargo.toml -p doxaiz-metrics --bin doxaiz-check -- meminfo reports/session-001/meminfo.txt
+cargo run --manifest-path core/Cargo.toml -p doxaiz-metrics --bin doxaiz-check -- pss reports/session-001/pss.txt
+cargo run --manifest-path core/Cargo.toml -p doxaiz-metrics --bin doxaiz-check -- jank reports/session-001/gfxinfo.txt
+```
+
+Скрипт требует явный serial, готовое авторизованное ADB-устройство, завершённую загрузку и установленный пакет `com.doxaiz.launcher`. Каждый вызов ADB ограничен 30 секундами (`timeout` из GNU coreutils). Сохраняются `/proc/meminfo`, `dumpsys meminfo com.doxaiz.launcher`, `dumpsys gfxinfo com.doxaiz.launcher` и контекст (время UTC, fingerprint, SDK, low_ram, версия DoxaizOS).
+
+Сбор не выполняет root, установку APK, force-stop, сброс gfxinfo, reboot или прошивку. Счётчики gfxinfo накопительные: сначала проведите сценарий взаимодействия из этого документа. Coldstart намеренно не собирается автоматически — корректный холодный запуск требует отдельной подготовки и нарушил бы принцип «не останавливать HOME».
+
+Отчёт публикуется только после успешных команд и проверки непустых файлов; существующее назначение не перезаписывается. Это **сбор сырых данных**, а не подтверждение производительности: даже непустой вывод может оказаться нераспознанным, проверяйте код выхода `doxaiz-check`. Снимки не атомарны по времени и относятся к нескольким последовательным командам.
+
+Каталог создаётся с правами 0700; fingerprint и список приложений в meminfo могут быть чувствительными. `reports/` исключён из git; перед передачей отчёта проверьте содержимое. В другом каталоге игнорирование не гарантируется.
+
+Форматы парсеров сопоставлены с ActivityThread/ProfileData AOSP (ссылки выше). Offline-тест `test_collect_device.py` проверяет только оркестрацию с mock adb; настоящего отчёта с телефона пока нет.
