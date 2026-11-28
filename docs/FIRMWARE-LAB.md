@@ -280,3 +280,17 @@ Run **46156874323 FAILURE**: фаза удаления XML достигнута 
 * [Settings.java](https://github.com/LineageOS/android_frameworks_base/blob/7d9b4820ef6ac0d72dfd1616094f53b18726e7fe/services/core/java/com/android/server/pm/Settings.java): найденный прямой вызов `applyDefaultPreferredAppsLPw` находится в createNewUser. Это **не подтверждает** предположение о повторном применении XML на каждом boot.
 
 В прежнем эксперименте `adb reboot` выполнялся сразу после resolve, что не доказывает завершённую запись preferred activity на диск. Следующая версия проверяет **settled persistence**: сохраняет preferred dump, ждёт 20 с, сохраняет второй dump, делает sync и только затем reboot. Это новая проверяемая гипотеза, не доказанная причина старых отказов. `sync` сам по себе не исполняет очередь Java Handler. Даже успех после такой задержки не будет доказательством устойчивости немедленного reboot/обрыва питания. Ожидание не назначает HOME повторно и не меняет preferred state. Production own-image gates не изменены.
+
+### Первый подтверждённый PASS settled-choice сценария
+
+[Run **46157465718**](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/runs/46157465718), HEAD **21410ceee24361db1cde105c8c7886e12b43bb2a**, job 141017190950: **completed / SUCCESS**, проверено через API и watcher с exit 0. Весь integration step завершился успешно, включая:
+
+1. Воспроизведение chooser при одном XML и двух HOME priority=0.
+2. Удаление экспериментального XML до explicit-choice фазы.
+3. Назначение Doxaiz, 20 с ожидания writeback, reboot, возврат к тому же foreground user, resolve Doxaiz без повторного назначения.
+4. Назначение stock HOME, такое же ожидание/reboot/foregrounding, resolve stock без повторного назначения.
+5. Финальный SELinux Enforcing.
+
+По сравнению с run 46156874323 последняя версия добавила 20 с settle, preferred dumps и sync перед reboot; это согласуется с найденной delayed-write механикой, но **один успешный последовательный прогон не доказывает единственную причину прежнего отказа**. Сырые значения dumps в этой сессии не скачаны/не проанализированы; утверждение опирается на SUCCESS всего fail-closed shell step. Повторяемость ещё требует независимых прогонов.
+
+Это первый подтверждённый положительный результат **обоих explicit choices после settled reboot** в данном modified-stock эксперименте. Он не реабилитирует XML initial-default, не подтверждает immediate reboot/power-loss durability, не проверяет source-патч priority=-1, собственную сборку или Redmi. Производственный initial-HOME gate не назначает роль командами ADB и остаётся непройденным на собственном образе. Готовность DoxaizOS: **25–30%**.
