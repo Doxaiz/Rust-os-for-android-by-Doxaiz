@@ -3,6 +3,7 @@
 ## [Unreleased] — 2026-11-23
 
 ### Added
+* APK checksum теперь обязателен по умолчанию: недоступная/нечитаемая сумма — отказ с сохранением prebuilt. Явный DOXAIZ_ALLOW_UNVERIFIED_APK=1 оставлен только для разработки; build.sh его принудительно отключает. Несовпадение хеша не обходится. 7 дополнительных offline-сценариев, всего 59; проверка сертификата APK пока не реализована.
 * `build.sh`: перед `m` проверяет вычисленные PRODUCT_PACKAGES/PRODUCT_PROPERTY_OVERRIDES через Soong dumpvar — модуль DoxaizLauncher, low_ram и версию DoxaizOS. При забытом наследовании overlay или ошибке dumpvar останавливается, а не выдаёт обычный Android за DoxaizOS. Добавлены 3 offline-сценария (всего 52 сценария скриптов); настоящая Android-сборка остаётся непроверенной.
 * `scripts/collect-device.sh`: явный ADB serial, проверка загрузки/пакета, сбор сырых meminfo/PSS/gfxinfo и контекста без root/force-stop/прошивки; timeout 30 с на команду, приватный каталог, защита от перезаписи и неполных отчётов. 7 offline-сценариев, инструкция в PERFORMANCE.md, reports/ исключён из git. Реальных диагностических данных пока нет.
 * `coldstart`: по AOSP Android 15/16 добавлены Status/LaunchState и распознавание ошибок/повторного использования Activity. Timeout/ошибка — FAIL, warm/hot/неизвестное состояние — Unknown; быстрый TotalTime + Complete больше не подтверждает холодный старт сам по себе. 2 unit-теста и CLI-тест с 7 сценариями; примеры и источники в PERFORMANCE.md.

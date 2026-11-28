@@ -63,7 +63,7 @@ class BuildTests(unittest.TestCase):
     def test_orchestration(self):
         for mode in ('relative', 'absolute', 'existing_tree', 'sync_failure',
                      'lunch_failure', 'build_failure', 'missing_launcher',
-                     'missing_properties', 'dumpvar_failure'):
+                     'missing_properties', 'dumpvar_failure', 'unverified_apk'):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory(prefix='build test ') as tmp:
                 root = Path(tmp)
                 bindir = root / 'bin'
@@ -81,7 +81,9 @@ class BuildTests(unittest.TestCase):
                     (tree / '.repo').mkdir(parents=True)
                 build_calls = root / 'build-calls'
                 env = dict(os.environ, PATH=str(bindir) + ':' + os.environ['PATH'],
-                           CASE='valid', BUILD_CASE=mode, BUILD_CALLS=str(build_calls),
+                           CASE='checksum_missing' if mode == 'unverified_apk' else 'valid',
+                           DOXAIZ_ALLOW_UNVERIFIED_APK='1',
+                           BUILD_CASE=mode, BUILD_CALLS=str(build_calls),
                            CALLS=str(root / 'network-calls'), FIXTURE=str(fixture),
                            HASH=hashlib.sha256(fixture.read_bytes()).hexdigest())
                 target = str(tree) if mode == 'absolute' else 'android tree'
@@ -103,7 +105,7 @@ class BuildTests(unittest.TestCase):
                 else:
                     self.assertNotIn('=== Готово.', result.stdout)
                 if mode in ('sync_failure', 'lunch_failure', 'missing_launcher',
-                            'missing_properties', 'dumpvar_failure'):
+                            'missing_properties', 'dumpvar_failure', 'unverified_apk'):
                     self.assertFalse(any(line.startswith('m ') for line in trace))
 
 

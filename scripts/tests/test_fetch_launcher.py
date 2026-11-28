@@ -57,7 +57,7 @@ else:
 
 
 class FetchLauncherTests(unittest.TestCase):
-    def run_case(self, mode, with_gh):
+    def run_case(self, mode, with_gh, allow_unverified=False):
         with tempfile.TemporaryDirectory(prefix="launcher test ") as tmp:
             root = Path(tmp)
             bin_dir = root / 'bin'
@@ -91,16 +91,17 @@ class FetchLauncherTests(unittest.TestCase):
             calls = root / 'calls.jsonl'
             env = dict(os.environ, PATH=str(bin_dir), CASE=mode,
                        FIXTURE=str(fixture), CALLS=str(calls),
-                       HASH=hashlib.sha256(fixture.read_bytes()).hexdigest())
+                       HASH=hashlib.sha256(fixture.read_bytes()).hexdigest(),
+                       DOXAIZ_ALLOW_UNVERIFIED_APK='1' if allow_unverified else '0')
             result = subprocess.run([str(bin_dir / 'bash'), str(SCRIPT), str(tree)],
                                     env=env, text=True, capture_output=True, timeout=15)
-            success = mode in ('valid', 'checksum_missing', 'checksum_invalid')
+            success = mode == 'valid' or (allow_unverified and mode in ('checksum_missing', 'checksum_invalid'))
             output = result.stdout + result.stderr
             self.assertEqual(result.returncode == 0, success, output)
             self.assertEqual(dest.read_bytes(), fixture.read_bytes() if success
                              else b'existing prebuilt', output)
             self.assertEqual(list(dest.parent.glob('.launcher-download.*')), [], output)
-            if mode.startswith('checksum_'):
+            if mode.startswith('checksum_') and allow_unverified:
                 self.assertIn('ПРЕДУПРЕЖДЕНИЕ', output)
                 self.assertNotIn('sha256 OK', output)
             if mode == 'valid':
@@ -115,6 +116,12 @@ class FetchLauncherTests(unittest.TestCase):
                          'checksum_missing', 'checksum_invalid'):
                 with self.subTest(with_gh=with_gh, mode=mode):
                     self.run_case(mode, with_gh)
+
+    def test_explicit_developer_override_never_bypasses_bad_hash(self):
+        for with_gh in (True, False):
+            for mode in ('checksum_missing', 'checksum_invalid', 'mismatch'):
+                with self.subTest(with_gh=with_gh, mode=mode):
+                    self.run_case(mode, with_gh, allow_unverified=True)
 
 
 if __name__ == '__main__':

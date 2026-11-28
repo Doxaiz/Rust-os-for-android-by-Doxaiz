@@ -71,36 +71,36 @@ for a in d.get("assets", []):
 fi
 
 # --- Проверка целостности (sha256) -------------------------------------------
-# Релизы лаунчера публикуют apk-sha256.txt рядом с APK. Если его удалось
-# скачать и разобрать — проверяем обязательно: несовпадение = hard fail
-# (битый/подменённый APK). Если скачать не удалось (офлайн-зеркало, нет сети,
-# файл отсутствует) — только предупреждение: на релизных сборках проверьте
-# вручную https://github.com/<repo>/releases/latest
-if [ -z "${TAG_NAME}" ]; then
-    echo "ПРЕДУПРЕЖДЕНИЕ: тег последнего релиза неизвестен — проверка sha256 пропущена." >&2
-else
-    SHA_URL="https://github.com/${REPO}/releases/download/${TAG_NAME}/apk-sha256.txt"
-    echo "Проверяю sha256 (${SHA_URL})…"
-    actual="$(sha256sum "${STAGED_APK}" | awk '{print $1}')"
-    echo "Фактический sha256: ${actual}"
-    if curl -fsSL --max-time 30 -o "${tmpdir}/apk-sha256.txt" "${SHA_URL}" 2>/dev/null; then
-        expected="$(grep -oE '[0-9a-fA-F]{64}' "${tmpdir}/apk-sha256.txt" | head -n 1 | tr 'A-F' 'a-f' || true)"
-        rm -f "${tmpdir}/apk-sha256.txt"
-        if [ -z "${expected}" ]; then
-            echo "ПРЕДУПРЕЖДЕНИЕ: apk-sha256.txt скачан, но sha256 в нём не распознан — проверка пропущена." >&2
-        elif [ "${expected}" != "${actual}" ]; then
-            echo "ОШИБКА: sha256 APK НЕ совпал с apk-sha256.txt из релиза!" >&2
-            echo "  ожидалось: ${expected}" >&2
-            echo "  получено : ${actual}" >&2
-            echo "APK мог быть повреждён при скачивании или подменён. Не используйте." >&2
-            exit 1
-        else
-            echo "sha256 OK — APK совпадает с релизным apk-sha256.txt"
-        fi
+# Непроверенный APK допускается только при явном developer override.
+checksum_unavailable() {
+    if [ "${DOXAIZ_ALLOW_UNVERIFIED_APK:-0}" = 1 ]; then
+        echo "ПРЕДУПРЕЖДЕНИЕ: $*; developer override — целостность НЕ подтверждена." >&2
     else
-        echo "ПРЕДУПРЕЖДЕНИЕ: apk-sha256.txt недоступен — целостность НЕ проверена" >&2
-        echo "  (APK скачан с того же release; но на релизных сборках сверьте хеш вручную)" >&2
+        echo "ОШИБКА: $*; старый APK не изменён." >&2
+        echo "Только для разработки: DOXAIZ_ALLOW_UNVERIFIED_APK=1" >&2
+        exit 1
     fi
+}
+SHA_URL="https://github.com/${REPO}/releases/download/${TAG_NAME}/apk-sha256.txt"
+echo "Проверяю sha256 (${SHA_URL})…"
+actual="$(sha256sum "${STAGED_APK}" | awk '{print $1}')"
+echo "Фактический sha256: ${actual}"
+if curl -fsSL --max-time 30 -o "${tmpdir}/apk-sha256.txt" "${SHA_URL}" 2>/dev/null; then
+    expected="$(grep -oE '[0-9a-fA-F]{64}' "${tmpdir}/apk-sha256.txt" | head -n 1 | tr 'A-F' 'a-f' || true)"
+    rm -f "${tmpdir}/apk-sha256.txt"
+    if [ -z "${expected}" ]; then
+        checksum_unavailable "apk-sha256.txt не содержит распознаваемую сумму"
+    elif [ "${expected}" != "${actual}" ]; then
+        echo "ОШИБКА: sha256 APK НЕ совпал с apk-sha256.txt из релиза!" >&2
+        echo "  ожидалось: ${expected}" >&2
+        echo "  получено : ${actual}" >&2
+        echo "APK мог быть повреждён при скачивании или подменён. Не используйте." >&2
+        exit 1
+    else
+        echo "sha256 OK — APK совпадает с релизным apk-sha256.txt"
+    fi
+else
+    checksum_unavailable "apk-sha256.txt недоступен"
 fi
 
 # Минимальная проверка контейнера; это не проверка подписи/идентичности пакета.

@@ -60,7 +60,7 @@ echo "=== Overlay DoxaizOS ==="
 "${REPO_ROOT}/scripts/apply-overlay.sh" "${TREE}"
 
 echo "=== Prebuilt APK лаунчера ==="
-"${REPO_ROOT}/scripts/fetch-launcher-apk.sh" "${TREE}"
+DOXAIZ_ALLOW_UNVERIFIED_APK=0 "${REPO_ROOT}/scripts/fetch-launcher-apk.sh" "${TREE}"
 
 echo "=== НЕ ЗАБУДЬТЕ (вручную, один раз) ==="
 echo "добавить строку в product make-файл вашего устройства:"
