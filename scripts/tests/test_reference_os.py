@@ -7,7 +7,7 @@ import unittest
 
 SCRIPT = Path(__file__).resolve().parents[1] / "reference-os-test.sh"
 FAKE_ADB = r'''#!/usr/bin/env python3
-import os, pathlib, sys
+import os, pathlib, re, sys
 args = sys.argv[1:]
 state = pathlib.Path(os.environ['STATE'])
 if args[:1] == ['-s']:
@@ -19,8 +19,21 @@ elif cmd == 'shell getenforce': print(os.environ.get('SELINUX', 'Enforcing'))
 elif cmd == 'shell service list':
     print('0 activity: [x]\n1 package: [x]\n2 window: [x]')
 elif cmd == 'shell settings get global boot_count': print('2' if state.exists() else '1')
+elif cmd == 'shell cat /proc/sys/kernel/random/boot_id':
+    print('11111111-1111-1111-1111-111111111112' if state.exists() else '11111111-1111-1111-1111-111111111111')
+elif cmd == 'shell getprop ro.build.fingerprint': print('reference-only')
 elif cmd == 'reboot': state.touch()
-elif cmd == 'shell cat /data/local/tmp/doxaiz-lab-persistence': print(os.environ.get('MARKER', 'doxaiz-lab-42'))
+elif cmd.startswith("shell printf '%s'"):
+    token = re.search(r"printf '%s' '([a-f0-9]+)'", cmd).group(1)
+    state.with_suffix('.marker').write_text(token)
+elif cmd.startswith('shell cat /data/local/tmp/doxaiz-lifecycle-'):
+    print(os.environ.get('MARKER', state.with_suffix('.marker').read_text()))
+elif cmd.startswith('shell rm -f /data/local/tmp/doxaiz-lifecycle-'):
+    state.with_suffix('.marker').unlink()
+elif cmd.startswith('shell cat /proc/') or cmd.startswith('shell cat /sys/'):
+    print('reference diagnostics only')
+elif cmd.startswith('connect ') or cmd == 'shell sync': pass
+else: raise AssertionError(args)
 '''
 
 

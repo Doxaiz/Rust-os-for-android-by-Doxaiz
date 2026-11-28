@@ -116,5 +116,7 @@ jobs:
             reports/own-firmware/*.log
             reports/own-firmware/identity.json
             reports/own-firmware/firmware-gates/
+            reports/own-firmware/lifecycle/
+            reports/own-firmware/firmware-gates-after-reboot/
           if-no-files-found: warn
           retention-days: 7

@@ -70,7 +70,7 @@ cleanup() {
         fi
         timeout 10s adb disconnect "$serial" >/dev/null 2>&1 || true
     fi
-    printf 'exit_code=%s\nscope=own-bundle-boot-baseline-only\n' "$code" > "$output/outcome.txt"
+    printf 'exit_code=%s\nscope=own-bundle-reboot-baseline-only\n' "$code" > "$output/outcome.txt"
     exit "$code"
 }
 trap cleanup EXIT
@@ -92,4 +92,11 @@ done
 python3 "$repo/scripts/check-firmware.py" --serial "$serial" \
     --expected-version "$version" --expected-fingerprint "$fingerprint" \
     --output "$output/firmware-gates"
-echo 'PASS: own-bundle identity and boot baseline ONLY; NOT CTS, Redmi compatibility or performance.'
+python3 "$repo/scripts/check-os-lifecycle.py" --serial "$serial" \
+    --output "$output/lifecycle" --allow-disposable-reboot
+# Re-use INDEPENDENT identity from the verified bundle, never learn it from
+# getprop after reboot. No APK install or HOME repair if persistence regresses.
+python3 "$repo/scripts/check-firmware.py" --serial "$serial" \
+    --expected-version "$version" --expected-fingerprint "$fingerprint" \
+    --output "$output/firmware-gates-after-reboot"
+echo 'PASS: own-bundle baseline before/after kernel reboot and userdata persistence ONLY; NOT CTS, Redmi compatibility or performance.'

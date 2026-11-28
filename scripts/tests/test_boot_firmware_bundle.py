@@ -16,12 +16,13 @@ SCRIPTS = Path(__file__).resolve().parents[1]
 
 class BootFirmwareBundleTests(unittest.TestCase):
     def test_boot_orchestration_and_cleanup(self):
-        for case in ('success', 'wrong_version', 'wrong_home', 'existing_device', 'bad_hash', 'existing_output', 'stop_failure'):
+        for case in ('success', 'wrong_version', 'wrong_home', 'existing_device', 'bad_hash', 'existing_output',
+                     'stop_failure', 'after_home', 'after_version', 'reboot_failure'):
             with self.subTest(case=case), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
                 scripts = root / 'repo/scripts'
                 scripts.mkdir(parents=True)
-                for name in ('boot-firmware-bundle.sh', 'unpack-firmware.py', 'firmware-bundle.py', 'check-firmware.py'):
+                for name in ('boot-firmware-bundle.sh', 'unpack-firmware.py', 'firmware-bundle.py', 'check-firmware.py', 'check-os-lifecycle.py'):
                     shutil.copyfile(SCRIPTS / name, scripts / name)
                 # ONLY this test copy bypasses the physical KVM check. Never
                 # expose a production flag for running fake hardware as real.
@@ -41,8 +42,37 @@ if args[:2] == ['-s', '127.0.0.1:6520']:
 if args == ['get-state']:
     if not Path(os.environ['LAUNCHED']).exists() and os.environ['CASE'] != 'existing_device':
         raise SystemExit(1)
-if args[:1] == ['logcat']:
+if args[:1] == ['logcat'] or args[:1] == ['connect']:
     raise SystemExit(0)
+import re
+state = Path(os.environ['LAUNCHED']).with_suffix('.rebooted')
+marker = state.with_suffix('.marker')
+def answer(value):
+    print(value)
+    raise SystemExit(0)
+if args == ['shell', 'getprop', 'ro.hardware']: answer('cutf_cvm')
+if args == ['shell', 'cat', '/proc/sys/kernel/random/boot_id']:
+    answer('11111111-1111-1111-1111-111111111112' if state.exists() else '11111111-1111-1111-1111-111111111111')
+if args == ['shell', 'settings', 'get', 'global', 'boot_count']: answer('2' if state.exists() else '1')
+if args == ['reboot']:
+    if os.environ['CASE'] == 'reboot_failure': raise SystemExit(1)
+    state.touch()
+    raise SystemExit(0)
+if len(args) == 2 and args[0] == 'shell' and args[1].startswith("printf '%s'"):
+    marker.write_text(re.search(r"printf '%s' '([a-f0-9]+)'", args[1]).group(1))
+    raise SystemExit(0)
+if args[:2] == ['shell', 'cat'] and args[2].startswith('/data/local/tmp/doxaiz-lifecycle-'):
+    answer(marker.read_text())
+if args[:3] == ['shell', 'rm', '-f']:
+    marker.unlink()
+    raise SystemExit(0)
+if args == ['shell', 'sync']: raise SystemExit(0)
+if args[:2] == ['shell', 'cat'] and (args[2].startswith('/sys/') or args[2] in ('/proc/swaps', '/proc/pressure/memory')):
+    answer('synthetic diagnostics')
+if state.exists() and os.environ['CASE'] == 'after_home' and args[:4] == ['shell', 'cmd', 'package', 'resolve-activity']:
+    answer('com.android.launcher/.Home')
+if state.exists() and os.environ['CASE'] == 'after_version' and args == ['shell', 'getprop', 'ro.doxaiz.version']:
+    answer('changed-version')
 sys.argv = [sys.argv[0], '-s', 'selected-test-device', *args]
 '''
                 mock.write_text('#!' + sys.executable + '\n' + prefix + MOCK)
@@ -75,12 +105,22 @@ sys.argv = [sys.argv[0], '-s', 'selected-test-device', *args]
                                          '0' * 64 if case == 'bad_hash' else sha, str(output)],
                                         capture_output=True, text=True, env=env, timeout=15)
                 self.assertEqual(result.returncode == 0, case == 'success', result.stdout + result.stderr)
-                started = case in ('success', 'wrong_version', 'wrong_home', 'stop_failure')
+                started = case in ('success', 'wrong_version', 'wrong_home', 'stop_failure',
+                                   'after_home', 'after_version', 'reboot_failure')
                 self.assertEqual((root / 'launched').exists(), started)
                 self.assertEqual((root / 'stopped').exists(), started)
                 if started:
                     data = json.loads((output / 'firmware-gates/result.json').read_text())
-                    self.assertEqual(data['passed'], case in ('success', 'stop_failure'))
+                    self.assertEqual(data['passed'], case not in ('wrong_version', 'wrong_home'))
+                    after = output / 'firmware-gates-after-reboot/result.json'
+                    if case in ('success', 'stop_failure', 'after_home', 'after_version'):
+                        self.assertEqual(json.loads(after.read_text())['passed'], case in ('success', 'stop_failure'))
+                        self.assertTrue(json.loads((output / 'lifecycle/result.json').read_text())['passed'])
+                    elif case == 'reboot_failure':
+                        self.assertFalse(after.exists())
+                        self.assertFalse(json.loads((output / 'lifecycle/result.json').read_text())['passed'])
+                    else:
+                        self.assertFalse((output / 'lifecycle').exists())
                     self.assertIn('exit_code=', (output / 'outcome.txt').read_text())
                     self.assertEqual((output / 'cleanup.txt').read_text().strip(),
                                      'stop_exit_code=1' if case == 'stop_failure' else 'stop_exit_code=0')

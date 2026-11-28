@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/firmware-reference.yml'
       - 'scripts/reference-os-test.sh'
+      - 'scripts/check-os-lifecycle.py'
       - 'scripts/stock-bundle-negative-control.sh'
       - 'scripts/boot-firmware-bundle.sh'
       - 'scripts/unpack-firmware.py'
