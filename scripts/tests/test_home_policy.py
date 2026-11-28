@@ -42,6 +42,12 @@ elif args == ['remount']:
     print('mock remount')
 elif args[:1] == ['push']:
     assert pathlib.Path(args[1]).is_file()
+    if args[-1].endswith('/doxaiz-home.xml'): (root / 'xml-present').touch()
+elif args == ['shell', 'rm', '/system/etc/preferred-apps/doxaiz-home.xml']:
+    if case == 'xml_remove_failure': sys.exit(1)
+    (root / 'xml-present').unlink()
+elif args == ['shell', 'test', '!', '-e', '/system/etc/preferred-apps/doxaiz-home.xml']:
+    sys.exit(1 if (root / 'xml-present').exists() else 0)
 elif args[:3] == ['shell', 'cmd', 'package'] and args[3] == 'resolve-activity':
     if '--user' not in args: print(stock)
     elif case == 'unexpected_initial_choice': print('com.doxaiz.launcher/.MainActivity')
@@ -50,6 +56,7 @@ elif args[:3] == ['shell', 'cmd', 'package'] and args[3] == 'resolve-activity':
     else: print('android/com.android.internal.app.ResolverActivity')
 elif args[:4] == ['shell', 'cmd', 'package', 'set-home-activity']:
     assert args[args.index('--user') + 1] == '10'  # NEVER primary user
+    assert not (root / 'xml-present').exists(), 'choice test must be isolated from XML'
     (root / 'choice').write_text(args[-1])
 elif args[:4] == ['shell', 'pm', 'path', 'com.doxaiz.launcher']:
     print('package:/system/app/DoxaizLauncher/DoxaizLauncher.apk')
@@ -83,7 +90,7 @@ class HomePolicyTests(unittest.TestCase):
 
     def test_integration_orchestration_and_guards(self):
         for case in ('success', 'outside_hosted', 'wrong_serial', 'phone', 'user_build',
-                     'remount_failure', 'unexpected_initial_choice', 'lost_choice', 'background_user'):
+                     'remount_failure', 'unexpected_initial_choice', 'lost_choice', 'background_user', 'xml_remove_failure'):
             with self.subTest(case=case), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
                 repo = root / 'repo'
@@ -119,6 +126,9 @@ printf fixture > "$root/overlay/vendor/doxaiz/apps/DoxaizLauncher/DoxaizLauncher
                     self.assertFalse(calls.exists())
                 elif case in ('phone', 'user_build'):
                     self.assertTrue(all(json.loads(line)[:2] == ['shell', 'getprop'] for line in calls.read_text().splitlines()))
+                if case == 'xml_remove_failure':
+                    recorded = [json.loads(line) for line in calls.read_text().splitlines()]
+                    self.assertFalse(any(c[:4] == ['shell', 'cmd', 'package', 'set-home-activity'] for c in recorded))
                 if case in ('success', 'background_user', 'lost_choice'):
                     recorded = [json.loads(line) for line in calls.read_text().splitlines()]
                     assignments = [c for c in recorded if c[:4] == ['shell', 'cmd', 'package', 'set-home-activity']]

@@ -147,6 +147,16 @@ assert 'com.android.launcher3/' in candidates
 assert candidates.count('priority=0 ') == 2, candidates
 assert not (root / 'home-role.txt').read_text().strip(), 'Unexpected HOME holder'
 PYCONTROL
+# Isolate explicit-choice persistence from the disproven XML policy. Do not
+# silently leave a boot-time default input installed during a different test.
+# This changes the experiment, NOT the production image or acceptance gates.
+root_adb > "$report/root-remove-xml.txt" 2>&1
+adb_cmd remount > "$report/remount-remove-xml.txt" 2>&1
+adb_cmd shell rm /system/etc/preferred-apps/doxaiz-home.xml
+adb_cmd shell test ! -e /system/etc/preferred-apps/doxaiz-home.xml
+adb_cmd shell sync
+printf '%s\n' 'XML-alone negative control finished; XML removed before explicit choices.' \
+    > "$report/choice-test-scope.txt"
 # TEST-ONLY simulation of an explicit user choice. This is not used by the
 # own-firmware acceptance path, which never assigns HOME.
 adb_cmd shell cmd package set-home-activity --user "$user_id" com.doxaiz.launcher/.MainActivity > "$report/user-choice-doxaiz.txt"
@@ -157,6 +167,7 @@ adb_cmd shell cmd package set-home-activity --user "$user_id" com.doxaiz.launche
 verify_choice_after_reboot() {
     local phase="$1" expected="$2" observed choice_deadline
     reboot_guest
+    adb_cmd shell test ! -e /system/etc/preferred-apps/doxaiz-home.xml
     resolve_home > "$report/$phase-background-home.txt"
     adb_cmd shell cmd role get-role-holders --user "$user_id" android.app.role.HOME \
         > "$report/$phase-background-role.txt"
@@ -181,7 +192,7 @@ adb_cmd shell cmd package set-home-activity --user "$user_id" "$stock_home" > "$
 [ "$(resolve_home)" = "$stock_home" ]
 verify_choice_after_reboot stock-choice "$stock_home"
 [ "$(adb_cmd shell getenforce | tr -d '\r\n')" = Enforcing ]
-printf '%s\n' 'PASS NEGATIVE CONTROL: XML alone leaves a chooser; explicit choices of Doxaiz and stock HOME each survive reboot.' \
+printf '%s\n' 'PASS NEGATIVE CONTROL: XML alone leaves a chooser; AFTER XML REMOVAL explicit choices of Doxaiz and stock HOME each survive reboot.' \
     'NOT a DoxaizOS image build/boot. Overlayfs+system APK injection was used for this integration experiment.' \
     > "$report/result.txt"
 cat "$report/result.txt"
