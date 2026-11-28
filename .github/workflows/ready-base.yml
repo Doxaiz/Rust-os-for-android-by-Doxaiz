@@ -65,10 +65,8 @@ jobs:
         run: |
           cargo --version
           cargo run --release --manifest-path core/Cargo.toml -p doxaiz-hardening --bin doxaiz-harden-remote -- \
-            reports/ready-base/inspection/
-            reports/ready-base/remote-patch/system-etc-init-phh-remotectl.rc.txt \
-            reports/ready-base/inspection/
-            reports/ready-base/remote-patch/system-bin-phh-remotectl.sh.txt \
+            reports/ready-base/inspection/system-etc-init-phh-remotectl.rc.txt \
+            reports/ready-base/inspection/system-bin-phh-remotectl.sh.txt \
             reports/ready-base/remote-patch
           python3 - <<'PY'
           import hashlib, json
