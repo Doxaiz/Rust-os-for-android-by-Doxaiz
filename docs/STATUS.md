@@ -10,6 +10,8 @@
 
 **Security blocker готовой базы:** run 46169653206 извлёк remote-support конфигурации (TCP ADB + reverse SSH). Активность не проверена; неизменённый image не одобрен для финальной установки. [Наблюдения и условия допуска](READY-BASE-SECURITY.md). Это не доказательство заражения и не уже исправленный hardened image.
 
+**Rust-first:** новый PSI parser и одноразовый CLI реализованы в doxaiz-metrics без новых dependencies/resident service; CI 46170363841 SUCCESS (cargo tests + release smoke). Это диагностический компонент, не ускорение ROM, не Android-target build и не исправление remote/debug blocker. [Методика и ограничения](PERFORMANCE.md).
+
 ## Три уровня готовности
 
 | Уровень | Состояние | Пояснение |

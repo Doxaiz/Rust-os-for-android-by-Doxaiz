@@ -214,3 +214,26 @@ bash scripts/collect-device.sh SERIAL reports/stock-001 --stock
 ### Примечание о PRESIGNED и dexpreopt
 
 В нашем Android.mk сейчас явно стоит LOCAL_DEX_PREOPT=false. Это **не ограничение PRESIGNED**: [app_prebuilt_internal.mk](https://github.com/LineageOS/android_build/blob/lineage-24.0/core/app_prebuilt_internal.mk) поддерживает dexpreopt без повторной подписи presigned APK. Отключение preopt может менять стоимость первой загрузки/первого старта и место под odex/vdex; без своей сборки и замеров нельзя объявлять его оптимизацией скорости или обещать экономию памяти. В этом изменении флаг не переключался — исправлен ошибочный комментарий о невозможности AOT.
+
+## Rust-first слой: измерять pressure, не запускать «ускоритель RAM»
+
+По требованию пользователя новые собственные вычислительные компоненты DoxaizOS приоритетно пишутся на **Rust**. Существующие Android framework, ядро, HAL и Doxaiz Launcher не переписываются ради языка: без профиля узких мест это риск регрессий и лишний объём работ, не доказательство максимальной производительности. Host-side Python/bash build/audit scripts не работают постоянно на телефоне и сами по себе не расходуют его runtime RAM.
+
+Первое конкретное дополнение — `doxaiz-metrics::psi`, Rust-парсер `/proc/pressure/memory` без внешних crates, `unsafe`, потоков и фонового polling. Сам parser использует заимствованные строки и фиксированные поля, не создаёт String/Vec; CLI выделяет буфер ввода не более 4097 байт. `#![forbid(unsafe_code)]` действует на библиотеку metrics. Это инженерное ограничение реализации, **не измеренный результат экономии RAM всей ОС**.
+
+```bash
+# Read-only snapshot, не настройка ядра и не сброс кэшей:
+adb -s SERIAL shell cat /proc/pressure/memory > reports/memory.psi
+cd core
+cargo run --release -p doxaiz-metrics --bin doxaiz-check -- psi ../reports/memory.psi
+```
+
+Режим `psi` запускается по запросу и завершается. В ОС не добавляется daemon/сервис/таймер. На host анализируется снимок телефона; host binary нельзя просто скопировать в Android — Android-target/NDK/Soong packaging и runtime ещё не реализованы.
+
+Формат сверён с [Linux PSI documentation](https://docs.kernel.org/accounting/psi.html): `some` — время, когда хотя бы часть задач stalled; `full` — когда stalled все non-idle задачи. `avg10/60/300` — проценты за окна 10/60/300 секунд; `total` — накопленные микросекунды, не свободные байты и не длительность конкретного запуска приложения.
+
+Требуются обе строки и все четыре поля; NaN/infinity, проценты вне 0..100, дубликаты, overflow total, неизвестный/обрезанный формат дают inconclusive (CLI exit 2), не «нулевое давление». Отсутствующий PSI тоже не считается успехом. Exit 0 режима означает только **измерение распознано**, даже при avg10=99%; текст явно не заявляет performance-budget PASS. Порог PSI для DoxaizOS не придумывается без workload-baseline. `total` между разными boot нельзя сравнивать как latency, а одно значение не доказывает ускорение ROM.
+
+Rust CI выполняет unit/CLI tests и release smoke с synthetic input, а при наличии PSI — с host Linux snapshot. Такой smoke не является benchmark Android, не измеряет Redmi и не добавляет проценты готовности. Для performance claims нужны release Android binary, одинаковая нагрузка, серии измерений CPU/PSS/PSI/latency и сравнение с неизменённой готовой базой. Security blocker выбранного prebuilt остаётся отдельным обязательным условием, Rust-парсер его не исправляет.
+
+Подтверждённый прогон новой Rust-реализации: [CI 46170363841](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/runs/46170363841), commit 5224ccd, **SUCCESS**, Rust job 141057158979. `cargo test`, release PSI smoke, xtask verify и profile generation завершились успешно. Clippy также помечен success, но остаётся информативным, не release gate. Содержимое host PSI snapshot/число тестов из logs локально не извлекались; конкретные значения и телефонный performance результат не заявляются. В sandbox rustc/cargo отсутствуют, реальная компиляция выполнена hosted runner, не локально.

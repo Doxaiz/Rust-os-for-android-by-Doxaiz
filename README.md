@@ -5,7 +5,7 @@
 # DoxaizOS
 
 **Проект облегчённой Android-системы для маломощных телефонов.**
-Android-база (LineageOS/AOSP slim) · low-RAM профиль в духе Android Go · рабочий стол — [Doxaiz Launcher](https://github.com/Doxaiz/Doxaiz-android-launcher-) · Rust-инструментарий — экспериментальный, не условие готовой базы · **планируется GSI-поставка для совместимых устройств; готового проверенного образа пока нет**.
+Android-база (LineageOS/AOSP slim) · low-RAM профиль в духе Android Go · рабочий стол — [Doxaiz Launcher](https://github.com/Doxaiz/Doxaiz-android-launcher-) · новые собственные компоненты — Rust-first; выигрыш подтверждаем измерениями · **планируется GSI-поставка для совместимых устройств; готового проверенного образа пока нет**.
 
 [![CI](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/workflows/ci.yml/badge.svg)](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/workflows/ci.yml)
 [![Лицензия](https://img.shields.io/badge/лицензия-MIT-blue)](LICENSE)
