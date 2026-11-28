@@ -33,11 +33,17 @@ echo "Источник : github.com/${REPO} (latest release)"
 echo "Назначение: ${DEST_APK}"
 
 # Имя последнего тега — нужно для проверки apk-sha256.txt. Узнаём один раз.
-TAG_NAME="$(curl -fsSL --max-time 30 "https://api.github.com/repos/${REPO}/releases/latest" | python3 -c 'import json,sys
+if command -v gh >/dev/null 2>&1; then
+    # gh uses the existing connection/GH_TOKEN. Anonymous curl here exhausted
+    # the shared runner API limit even though asset download was authenticated.
+    TAG_NAME="$(gh api --jq '.tag_name // empty' "repos/${REPO}/releases/latest" || true)"
+else
+    TAG_NAME="$(curl -fsSL --max-time 30 "https://api.github.com/repos/${REPO}/releases/latest" | python3 -c 'import json,sys
 try:
     print(json.load(sys.stdin).get("tag_name",""))
 except Exception:
     print("")' || true)"
+fi
 if [ -z "$TAG_NAME" ]; then
     echo "Ошибка: не удалось определить тег релиза; существующий APK не изменён." >&2
     exit 1

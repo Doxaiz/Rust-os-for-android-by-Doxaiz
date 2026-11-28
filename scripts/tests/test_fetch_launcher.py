@@ -24,6 +24,10 @@ mode = os.environ['CASE']
 with open(os.environ['CALLS'], 'a') as log:
     log.write(json.dumps([pathlib.Path(sys.argv[0]).name] + args) + '\n')
 if pathlib.Path(sys.argv[0]).name == 'gh':
+    if args[:1] == ['api']:
+        assert args[-1].endswith('/releases/latest'), args
+        print('' if mode == 'no_tag' else 'v-test-pinned')
+        sys.exit(0)
     assert args[:3] == ['release', 'download', 'v-test-pinned'], args
     if mode == 'download_failure':
         sys.exit(22)
