@@ -54,6 +54,8 @@ class InspectGSITests(unittest.TestCase):
                     if case == 'debugfs_timeout': raise subprocess.TimeoutExpired('debugfs', 25)
                     if 'build.prop' in command and case != 'missing_props':
                         return b'ro.build.version.sdk=34\nro.build.version.security_patch=2026-11-01\n', ''
+                    if command == 'cat /system/etc/init/phh-remotectl.rc':
+                        return b'on property:persist.sys.phh.remote=true\n    start phh-remotectl\n', ''
                     if command in ('ls -p /system/app', 'ls -p /system/priv-app'):
                         return b'/42/040755/0/0/Settings//\n', ''
                     return b'', 'unavailable'
@@ -64,6 +66,10 @@ class InspectGSITests(unittest.TestCase):
                 if case == 'success':
                     self.assertEqual(result['inventory_by_path']['/system/app']['entries'][0]['name'], 'Settings')
                     self.assertEqual(result['inventory_by_path']['/product/app']['status'], 'unavailable')
+                    config = result['security_configs_by_path']['/system/etc/init/phh-remotectl.rc']
+                    self.assertIn('start phh-remotectl', config['text'])
+                    self.assertEqual(config['runtime_activation'], 'unknown')
+                    self.assertEqual(config['sha256'], hashlib.sha256(config['text'].encode()).hexdigest())
                 self.assertFalse(result['publisher_authenticated'])
                 self.assertFalse(result['boot_tested'])
                 self.assertIsNone(result['device_compatible'])

@@ -19,6 +19,9 @@ import zlib
 
 LIMIT = 2 * 1024**2
 PROPS = ('/build.prop', '/system/build.prop', '/system/system/build.prop')
+SECURITY_PATHS = ('/system/etc/init/phh-remotectl.rc', '/system/bin/phh-remotectl.sh',
+                  '/system/etc/init/init-debug.rc', '/system/etc/prop.default',
+                  '/system/etc/init/atrace_userdebug.rc', '/system/etc/init/logcatd.rc')
 KEY = re.compile(r'ro\.(?:build\.(?:fingerprint|version\.(?:release|sdk|security_patch))|'
                  r'system\.build\.(?:fingerprint|version\.(?:release|sdk|security_patch))|'
                  r'product\.cpu\.(?:abi|abilist|abilist32|abilist64)|'
@@ -107,7 +110,7 @@ def inspect(image, expected, output, maximum=8 * 1024**3):
     result = {'passed': False, 'scope': 'read-only-untrusted-filesystem-inspection',
               'publisher_authenticated': False, 'boot_tested': False,
               'device_compatible': None, 'properties_by_path': {}, 'elf_by_path': {},
-              'diagnostics': {}, 'inventory_by_path': {}, 'observed_compressed_sha256': None}
+              'diagnostics': {}, 'inventory_by_path': {}, 'security_configs_by_path': {}, 'observed_compressed_sha256': None}
     try:
         digest = hashlib.sha256()
         with image.open('rb') as stream:
@@ -166,6 +169,23 @@ def inspect(image, expected, output, maximum=8 * 1024**3):
                         result['inventory_by_path'][path] = {'status': 'unparsed', 'error': str(error)}
                 else:
                     result['inventory_by_path'][path] = {'status': 'unavailable'}
+
+            for path in SECURITY_PATHS:
+                data, diagnostic = read_debugfs(raw, 'cat ' + path, work)
+                result['diagnostics'][path] = diagnostic
+                if not data:
+                    result['security_configs_by_path'][path] = {'status': 'unavailable'}
+                    continue
+                name = path.strip('/').replace('/', '-') + '.txt'
+                (output / name).write_bytes(data)
+                info = {'status': 'read', 'bytes': len(data),
+                        'sha256': hashlib.sha256(data).hexdigest(), 'report_file': name,
+                        'runtime_activation': 'unknown'}
+                if len(data) <= 6000:
+                    info['text'] = data.decode('utf-8', errors='strict')
+                else:
+                    info['status'] = 'read-content-not-published-too-large'
+                result['security_configs_by_path'][path] = info
 
             for required_path in ('/system/app', '/system/priv-app'):
                 if result['inventory_by_path'][required_path]['status'] != 'listed':

@@ -85,6 +85,7 @@ jobs:
               # GitHub annotations truncate large messages. Keep properties
               # separate and inventory in small reconstructable path chunks.
               inventory = result.pop('inventory_by_path', {})
+              result.pop('security_configs_by_path', None)
               print('::notice title=UNTRUSTED GSI properties::' + json.dumps(result).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
               # GitHub also caps annotations per step. Deduplicate partition
               # aliases and publish at most eight small groups (plus two above).
@@ -103,6 +104,21 @@ jobs:
                   print('::notice title=UNTRUSTED GSI inventory group::' + text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as stream:
               stream.write(summary)
+          PY
+      - name: Report exact debug and remote configuration (NOT proof of runtime activation)
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('reports/ready-base/inspection/result.json')
+          if path.exists():
+              result = json.loads(path.read_text())
+              for name, info in result.get('security_configs_by_path', {}).items():
+                  text = json.dumps({'path': name, **info})
+                  if len(text.encode()) > 7500:
+                      text = json.dumps({'path': name, 'status': 'notice-too-large-see-artifact'})
+                  print('::notice title=UNTRUSTED GSI security config::' + text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
           PY
       - name: Retain small report only, NEVER redistribute unverified image
         if: always()
