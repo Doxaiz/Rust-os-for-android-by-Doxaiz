@@ -40,7 +40,7 @@ with socket.socket() as connection:
         raise SystemExit('Refusing an existing TCP listener on port 6520')
 PY
 # A pre-existing adb target is not ours; never attach to it or stop its VM.
-adb start-server > "$output/adb-start.txt" 2>&1
+timeout 20s adb start-server > "$output/adb-start.txt" 2>&1
 if timeout 10s adb -s "$serial" get-state >/dev/null 2>&1; then
     echo 'Refusing an already-online target on port 6520' >&2
     exit 1
@@ -61,11 +61,14 @@ cleanup() {
                 tail -n 500 "$file" > "$output/$name" || true
             fi
         done
-        if ! timeout 60s "${session[@]}" env HOME="$cvd" "$cvd/bin/stop_cvd" > "$output/stop.log" 2>&1; then
+        stop_status=0
+        timeout 60s "${session[@]}" env HOME="$cvd" "$cvd/bin/stop_cvd" > "$output/stop.log" 2>&1 || stop_status=$?
+        printf 'stop_exit_code=%s\n' "$stop_status" > "$output/cleanup.txt"
+        if [ "$stop_status" -ne 0 ]; then
             echo 'Cuttlefish cleanup failed; see stop.log' >&2
             [ "$code" -ne 0 ] || code=1
         fi
-        adb disconnect "$serial" >/dev/null 2>&1 || true
+        timeout 10s adb disconnect "$serial" >/dev/null 2>&1 || true
     fi
     printf 'exit_code=%s\nscope=own-bundle-boot-baseline-only\n' "$code" > "$output/outcome.txt"
     exit "$code"

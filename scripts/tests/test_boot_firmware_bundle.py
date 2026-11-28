@@ -16,7 +16,7 @@ SCRIPTS = Path(__file__).resolve().parents[1]
 
 class BootFirmwareBundleTests(unittest.TestCase):
     def test_boot_orchestration_and_cleanup(self):
-        for case in ('success', 'wrong_version', 'wrong_home', 'existing_device', 'bad_hash', 'existing_output'):
+        for case in ('success', 'wrong_version', 'wrong_home', 'existing_device', 'bad_hash', 'existing_output', 'stop_failure'):
             with self.subTest(case=case), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
                 scripts = root / 'repo/scripts'
@@ -56,6 +56,8 @@ sys.argv = [sys.argv[0], '-s', 'selected-test-device', *args]
                 with tarfile.open(host, 'w:gz') as archive:
                     for tool, marker in (('launch_cvd', 'LAUNCHED'), ('stop_cvd', 'STOPPED')):
                         payload = f'#!/bin/sh\ntouch "${marker}"\n'.encode()
+                        if case == 'stop_failure' and tool == 'stop_cvd':
+                            payload += b'exit 1\n'
                         entry = tarfile.TarInfo('bin/' + tool)
                         entry.mode = 0o755
                         entry.size = len(payload)
@@ -73,13 +75,15 @@ sys.argv = [sys.argv[0], '-s', 'selected-test-device', *args]
                                          '0' * 64 if case == 'bad_hash' else sha, str(output)],
                                         capture_output=True, text=True, env=env, timeout=15)
                 self.assertEqual(result.returncode == 0, case == 'success', result.stdout + result.stderr)
-                started = case in ('success', 'wrong_version', 'wrong_home')
+                started = case in ('success', 'wrong_version', 'wrong_home', 'stop_failure')
                 self.assertEqual((root / 'launched').exists(), started)
                 self.assertEqual((root / 'stopped').exists(), started)
                 if started:
                     data = json.loads((output / 'firmware-gates/result.json').read_text())
-                    self.assertEqual(data['passed'], case == 'success')
+                    self.assertEqual(data['passed'], case in ('success', 'stop_failure'))
                     self.assertIn('exit_code=', (output / 'outcome.txt').read_text())
+                    self.assertEqual((output / 'cleanup.txt').read_text().strip(),
+                                     'stop_exit_code=1' if case == 'stop_failure' else 'stop_exit_code=0')
 
 
 if __name__ == '__main__':

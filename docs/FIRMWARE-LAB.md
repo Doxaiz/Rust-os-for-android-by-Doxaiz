@@ -132,7 +132,7 @@ python3 scripts/check-firmware.py \
 
 Standard hosted Linux для public repo выбран вместо larger runner; workflow отказывается работать для private repo. Новые платные машины/подписки не созданы; отдельный облачный аккаунт не нужен. Free не означает бесконечные ресурсы: сохраняются лимиты job/concurrency/artifacts и правила GitHub. Полную AOSP-компиляцию на стандартном runner не обещаем.
 
-**Ограничение:** этот action не имеет входа для собственного image archive. Для DoxaizOS потребуется отдельный путь доставки и запуска нашего согласованного комплекта. Успех эталона закрывает вопрос бесплатной площадки для boot/reboot-тестов, но не вопрос сборки и не приёмку нашей прошивки.
+**Ограничение:** этот action не имеет входа для собственного image archive. Для DoxaizOS добавлен отдельный путь доставки и запуска нашего согласованного комплекта — firmware-own.yml; без настоящих артефактов его own-os job остаётся skipped. Успех эталона закрывает вопрос бесплатной площадки для boot/reboot-тестов, но не вопрос сборки и не приёмку нашей прошивки.
 
 ### Дополнительный реальный прогон с 2 ГБ
 
@@ -155,7 +155,7 @@ Standard hosted Linux для public repo выбран вместо larger runner
 * CircleCI Android machine/KVM/150GB: https://circleci.com/docs/guides/execute/android-machine-image/
 * Cirrus FAQ (индекс поисковика, прямое чтение страницы не удалось): https://cirrus-ci.org/faq/
 
-**До готовой прошивки:** получить бесплатную достаточную сборочную мощность либо честно изменить стратегию производства образа; собрать наш образ с provenance; добавить доставку собственного комплекта; пройти identity gates и системные тесты. Подменять это патчем ro.doxaiz.version поверх чужого stock-образа нельзя.
+**До готовой прошивки:** получить бесплатную достаточную сборочную мощность либо честно изменить стратегию производства образа; собрать наш образ с provenance; проверить подготовленную доставку собственного комплекта на реальной нашей сборке; пройти identity gates и системные тесты. Подменять это патчем ro.doxaiz.version поверх чужого stock-образа нельзя.
 
 ## Собственный продукт: проверка upstream до сборки
 
@@ -168,3 +168,21 @@ Standard hosted Linux для public repo выбран вместо larger runner
 * Конкретный product, blob cd1e199f714bcc9c2ad8d69b451b2af7c84e7409: https://android.googlesource.com/device/google/cuttlefish/+/refs/tags/android-17.0.0_r1/vsoc_x86_64_only/phone/aosp_cf.mk
 
 Export/verify собственного комплекта описан в [BUILD.md §12](BUILD.md#12-доставка-собственной-сборки-на-бесплатный-тест-хост). Он не получает сборочную мощность и не запускает образы автоматически. Независимая expected identity берётся из target-files, не из getprop тестируемой VM; согласованность всех build outputs остаётся ответственностью доверенного сборщика.
+
+
+## Путь собственных образов: инфраструктура и отрицательный контроль
+
+Добавлены `.github/workflows/firmware-own.yml`, `prepare-cuttlefish-host.sh`, `unpack-firmware.py` и `boot-firmware-bundle.sh`. Инструкции/границы доверия — [BUILD.md §12](BUILD.md#12-доставка-собственной-сборки-на-бесплатный-тест-хост).
+
+[Run 46149422383](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/runs/46149422383), commit `6a37aba`: **host prerequisites SUCCESS**, проверены реальная установка cuttlefish-base, создание cvd-сетевых интерфейсов, доступ KVM с обновлёнными группами. **Own firmware boot job SKIPPED**: заявки/собственного образа нет. Общий зелёный workflow не является firmware PASS.
+
+Для проверки нового пути на реальных архивах, не дожидаясь нашей сборки, эталонный workflow дополнен отдельным **stock negative control**. После штатного boot/reboot/persistence и остановки VM он берёт тот же stock image ZIP и host package, создаёт явно синтетическую metadata с заведомо несовпадающей DoxaizOS-версией, распаковывает и запускает их новым own-bundle-скриптом. Требуется отказ именно на version gate — ошибка загрузки или распаковки не засчитывается успешным отрицательным контролем. Синтетический manifest этого теста не является настоящим pinned AOSP manifest; хеши проверяют доставку, не происхождение ОС.
+
+Первый [run 46149504950](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/runs/46149504950) **FAILED** на распаковке: реальные host tools используют symlink launch_cvd, а начальная проверка требовала обычный файл прямо по этому имени. Ошибка найдена настоящим CI, не скрыта. В `3145a40` исправлено: допускается только ссылка, которая разрешается в исполняемый обычный файл **внутри** нового дерева; добавлен regression-сценарий. Дальнейший результат фиксируется отдельно, не предполагается по offline-тестам.
+
+Вне настоящей VM проверены 13 synthetic archive cases (traversal, symlink/child, коллизии, hardlink/FIFO, executable, budget и валидные варианты) и 7 mocked own-boot cases (успех/identity/HOME/старое устройство/hash/output/ошибка stop). Моки не измеряют ОС и не повышают процент готовности.
+
+
+Повторный [run 46149786233](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/runs/46149786233), commit `3145a40`: **SUCCESS**, включая шаг `Real STOCK rejection through own-bundle boot path (NOT DoxaizOS)`. Реальные Google image ZIP + host package прошли проверку доставки, новый распаковщик и запуск собственным скриптом с 2048 МБ; read-only gate отказал **именно по несовпадению ожидаемой DoxaizOS-версии**. Ошибка загрузки не была принята вместо этого результата. Предыдущий эталонный boot/reboot/persistence в том же job тоже успешен. Это реальная проверка новой оркестрации и отрицательного контроля, **не положительная загрузка DoxaizOS**.
+
+Следующая доработка отдельно фиксирует stop exit code в cleanup.txt и требует `stop_exit_code=0` для успешного отрицательного контроля: одного факта попытки cleanup недостаточно. SHA и полные сырые artifacts локально не анализировались; ссылка на CI/статусы шагов является доступным доказательством выполнения assertions. Общая готовность остаётся 25–30%.

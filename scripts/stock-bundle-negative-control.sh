@@ -57,7 +57,7 @@ root = pathlib.Path('reports/stock-own-path-negative')
 result = json.loads((root / 'firmware-gates/result.json').read_text())
 assert result['passed'] is False
 assert result['error'] == 'DoxaizOS version matches independent expected build', result
-assert (root / 'stop.log').exists(), 'cleanup was not attempted'
+assert (root / 'cleanup.txt').read_text().strip() == 'stop_exit_code=0', 'cleanup did not succeed'
 message = 'PASS NEGATIVE CONTROL: real stock image booted via own-bundle path and correctly rejected. NOT DoxaizOS.'
 (root / 'negative-control.txt').write_text(message + '\n')
 print(message)
