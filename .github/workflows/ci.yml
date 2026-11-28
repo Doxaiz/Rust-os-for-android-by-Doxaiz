@@ -127,7 +127,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           DOXAIZ_ALLOW_UNVERIFIED_APK: '0'
-        run: bash scripts/fetch-launcher-apk.sh
+        run: |
+          mkdir -p reports
+          if ! bash scripts/fetch-launcher-apk.sh > reports/launcher-download.txt 2>&1; then
+            while IFS= read -r line; do
+              line="${line//'%'/'%25'}"
+              printf '::error::%s\n' "$line"
+            done < reports/launcher-download.txt
+            exit 1
+          fi
+          cat reports/launcher-download.txt
       - name: Enable KVM for disposable emulator
         run: |
           test -e /dev/kvm
@@ -152,6 +161,8 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: android-emulator-api29-${{ github.run_id }}
-          path: reports/emulator-api29/
+          path: |
+            reports/emulator-api29/
+            reports/launcher-download.txt
           if-no-files-found: warn
           retention-days: 7
