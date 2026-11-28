@@ -1,0 +1,60 @@
+name: Free Cuttlefish reference OS lab
+
+on:
+  push:
+    branches: ['arena/**', main]
+    paths:
+      - '.github/workflows/firmware-reference.yml'
+      - 'scripts/reference-os-test.sh'
+
+permissions:
+  contents: read
+
+jobs:
+  reference-os:
+    # Standard Linux public-repo runner only. No paid/larger/self-hosted machine.
+    if: github.event.repository.private == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check available lab resources
+        run: |
+          test -e /dev/kvm
+          free -h
+          df -h .
+      - name: Boot reference AOSP firmware and test reboot/persistence
+        id: cuttlefish
+        uses: marcprux/cuttlefish-runner@3e65049fd8a2c2745eb41dca3431680be5d5ebbd
+        with:
+          target: aosp_cf_x86_64_only_phone-userdebug
+          cpus: '2'
+          memory-mb: '4096'
+          boot-timeout: '900'
+          disable-animations: 'false'
+          cache: 'false'
+          script: bash scripts/reference-os-test.sh
+      - name: Record exact reference build
+        if: always()
+        env:
+          BUILD_ID: ${{ steps.cuttlefish.outputs.build-id }}
+          TARGET: ${{ steps.cuttlefish.outputs.target }}
+        run: |
+          mkdir -p reports/cuttlefish-reference
+          printf 'reference_build_id=%s\nreference_target=%s\n' "$BUILD_ID" "$TARGET" > reports/cuttlefish-reference/build.txt
+          {
+            echo '## Free Cuttlefish infrastructure test — reference AOSP, NOT DoxaizOS'
+            cat reports/cuttlefish-reference/build.txt
+            if [ -f reports/cuttlefish-reference/result.txt ]; then
+              cat reports/cuttlefish-reference/result.txt
+            else
+              echo 'No successful reference OS result. Check failed steps.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain reference OS evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cuttlefish-reference-${{ github.run_id }}
+          path: reports/cuttlefish-reference/
+          retention-days: 3
