@@ -90,3 +90,32 @@ Workspace `cargo test` прошёл в полном [CI 46171240670](https://git
 После исправления [run 46171662508](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/runs/46171662508) **SUCCESS**: готовый gzip снова загружен/сверен, конфигурации извлечены read-only, реальный release Rust binary принял их точные bytes и создал две inert replacement files + NOTICE. [Полный patch evidence](evidence/rust-remote-patch-46171662508.json) получен через API, SHA текстов проверены локально.
 
 **Не путать:** исходный system.img всё ещё НЕ модифицирован; ext4 integration/SELinux/AVB/runtime не выполнены. Это первый реально проверенный Rust patch-preparation шаг, не безопасная готовая прошивка. Общая готовность 25–30%. Локально Python suites: 27 methods, 26 PASS + 1 SKIP; Rust compiler отсутствует в sandbox, его compile/tests выполнены hosted CI.
+
+## Rust: узкий эксперимент изменения КОПИИ raw ext4
+
+Добавлен `doxaiz-experiment-image` в тот же Rust crate. Нужен явный `--allow-unbooted-experiment`. Это **не прошивальщик** и не универсальный image editor. Поддерживается только точный raw image SHA-256/размер из первого аудита, обычный файл с ext4/4096-byte blocks; block devices/symlinks/другие версии не принимаются. Shared-blocks filesystem запрещён, так как иначе нельзя гарантировать исключительное владение данными файла. Source image никогда не открывается на запись.
+
+Узкий путь:
+
+1. Проверить hash, ext4 layout и исходный `e2fsck -f -n` (только exit 0).
+2. Через read-only debugfs stat получить **единственный** data extent каждого малого regular file. Любые иные flags, размер, hardlinks, multi-block layout или неизвестный формат — отказ. Содержимое вычисленного блока должно совпасть с reviewed bytes.
+3. Создать новую копию образа; записать inert replacement в прежний byte range, дополнив пробелами/переводом строки до **прежней длины**. Не менять inode, directory entries, uid/gid/mode, xattrs/SELinux labels, extents или другие metadata. Две области должны находиться в разных data blocks.
+4. Проверить debugfs cat/readback и точное совпадение inode stat до/после. Повторить e2fsck в режиме `-n`.
+5. Побайтно сравнить ВСЮ копию с исходником: допустимы различия только внутри двух reviewed file ranges, размер image тот же. Повторно сверить hash исходника и вычислить hash результата.
+6. Только после проверок записать completion `result.txt` с `boot_tested=false`, `avb_verified=false`, `release_approved=false`. Любой partial output не использовать.
+
+Почему не rm/write: пересоздание inode через debugfs могло бы потерять SELinux labels/permissions. Этот эксперимент намеренно сохраняет всю metadata побайтно, но не подходит для файлов другого размера/layout. Проверка checksum FS не является AVB verification; любые существующие AVB hashes/signatures могут быть нарушены изменением data. Инструмент **не** отключает verity, не подписывает image и не объявляет его flashable.
+
+В workflow gzip распаковывается только после предыдущего continuity audit; перед созданием двух raw файлов проверяется свободное место. Исходный raw и изменённый `UNBOOTED-NOT-FOR-FLASH.img` удаляются с disposable runner, **не загружаются в artifacts/релизы**. Сохраняется только маленький статический отчёт. Runtime активность, другие remote entry points, загрузка/vendor, Launcher integration и performance по-прежнему отдельно не проверены. Локальные file-race attacks исключены из модели; запускать только в собственном disposable workspace без root.
+
+### Реальный отказ: у кандидата shared_blocks, изменения НЕ применены
+
+[Run 46173065193](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/runs/46173065193), commit b05d3cb: **FAILURE**, точная API-visible причина: `shared_blocks filesystem refused: cannot prove exclusive file data ownership`. [Отрицательное evidence](evidence/image-experiment-refusal-46173065193.json). Отказ произошёл после проверки pinned raw SHA, **до** создания output copy и любых data writes. Успешные предшествующие audit/patch-preparation steps не означают, что image edit прошёл.
+
+Причина существенная: ext4 shared_blocks допускает общие физические блоки данных. Прямая запись по extent могла бы затронуть не только выбранный логический файл. Нельзя просто снять feature flag, пропустить guard или считать Links=1 доказательством отсутствия shared data. Текущий инструмент намеренно не поддерживает этот layout.
+
+Следующий проверяемый путь — сначала **read-only** оценка возможности unshare на disposable копии, затем отдельная нормализация/валидация и только после неё повторное планирование extents. Согласно [e2fsck manual](https://www.man7.org/linux/man-pages/man8/e2fsck.8.html), `unshare_blocks` требует свободного места, а в сочетании с `-n` симулирует выделение блоков. Этот этап пока **не запускался**. Нормализация изменит metadata/расположение данных: прежние физические offsets переиспользовать нельзя; потребуется отдельный baseline normalized image и новый набор проверок. Автоматического увеличения раздела/отключения AVB здесь нет.
+
+Предыдущий run 46172565295 также FAILURE; его точные логи были недоступны (EOF), поэтому причина не приписывается задним числом. Obsolete cef5d72 run 46172516608 был отменён по запросу агента после добавления shared-block guard; положительный результат ему не приписывается. Full CI 46172565297 SUCCESS, включая Rust tests. В sandbox компилятора Rust нет; это реальная host CI-компиляция, не Android-target build.
+
+**Итог:** готового модифицированного system.img нет. Реально обнаружен layout blocker и подтверждён безопасный отказ, а не успешное hardening. Готовность по-прежнему 25–30%.

@@ -14,6 +14,8 @@
 
 Rust hardening preparation: run 46171662508 SUCCESS — release-инструмент создал проверенные замены двух remote-support файлов из реального образа. **В system.img они ещё не применены**, security blocker не снят; [evidence/ограничения](READY-BASE-SECURITY.md).
 
+Попытка Rust image edit 46173065193 **отказала до записи**: у prebuilt ext4 shared_blocks. Изменённый образ не создан; guard не обходился. [Причина и следующий безопасный этап](READY-BASE-SECURITY.md).
+
 ## Три уровня готовности
 
 | Уровень | Состояние | Пояснение |

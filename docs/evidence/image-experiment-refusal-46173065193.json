@@ -1,0 +1,12 @@
+{
+  "scope": "negative-static-image-edit-control",
+  "run_url": "https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/runs/46173065193",
+  "source_commit": "b05d3cbe5fe48b35896195ae0a44a2e4413edb3b",
+  "workflow_conclusion": "failure",
+  "experiment_outcome": "refused-before-output-copy-or-write",
+  "reason": "shared_blocks filesystem refused: cannot prove exclusive file data ownership",
+  "input_raw_sha256": "74d8cc04bd140e173ad5e94e4216bb8769939b4290cd76727f3f877ccf05df08",
+  "modified_image_created": false,
+  "boot_tested": false,
+  "release_approved": false
+}
