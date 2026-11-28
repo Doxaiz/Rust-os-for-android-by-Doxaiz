@@ -51,4 +51,20 @@ done
 adb_cmd shell pidof com.doxaiz.launcher > "$output/pid.txt"
 [ -s "$output/pid.txt" ]
 bash "$root/scripts/collect-device.sh" "$serial" "$output/diagnostics"
+# Negative control: this stock AVD must NOT be accepted as DoxaizOS firmware.
+# Verify the specific identity rejection, not just any error (e.g. broken adb).
+if python3 "$root/scripts/check-firmware.py" --serial "$serial" \
+    --expected-version 0.1.0 --expected-fingerprint doxaiz-negative-control \
+    --output "$output/stock-firmware-negative-control"; then
+    echo "ERROR: stock Android incorrectly accepted as DoxaizOS" >&2
+    exit 1
+fi
+python3 - "$output/stock-firmware-negative-control/result.json" <<'PYNEGATIVE'
+import json, sys
+with open(sys.argv[1], encoding='utf-8') as source:
+    report = json.load(source)
+assert report['passed'] is False
+assert report['error'] == 'DoxaizOS version matches independent expected build'
+assert any(c['label'] == 'version' and c['code'] == 0 for c in report['commands'])
+PYNEGATIVE
 printf 'PASS: released launcher installed and resumed as HOME on stock Android Emulator.\nNot a DoxaizOS firmware, memory-budget, A64, or Redmi 9A compatibility test.\n' | tee "$output/result.txt"
