@@ -45,11 +45,14 @@ wait_boot() {
     return 1
 }
 root_adb() {
-    adb_cmd root
+    # adbd can close its transport while switching UID and return nonzero;
+    # success is determined by id -u, never by hiding a failed root request.
+    adb_cmd root || true
     deadline=$((SECONDS + 60))
     while [ "$SECONDS" -lt "$deadline" ]; do
         timeout 10s adb connect "$serial" >/dev/null 2>&1 || true
         [ "$(adb_cmd shell id -u 2>/dev/null | tr -d '\r\n' || true)" = 0 ] && return 0
+        adb_cmd root || true
         sleep 2
     done
     return 1
@@ -116,7 +119,15 @@ resolve_home() {
     adb_cmd shell cmd package resolve-activity --user "$user_id" --brief \
         -a android.intent.action.MAIN -c android.intent.category.HOME | tr -d '\r' | tail -n 1
 }
-home="$(resolve_home)"
+# Provision and RoleController complete asynchronously. Observe without
+# assigning a holder; a chooser still present after the deadline is failure.
+home_deadline=$((SECONDS + 45))
+while :; do
+    home="$(resolve_home)"
+    case "$home" in com.doxaiz.launcher/.MainActivity|com.doxaiz.launcher/com.doxaiz.launcher.MainActivity) break ;; esac
+    [ "$SECONDS" -lt "$home_deadline" ] || break
+    sleep 2
+done
 adb_cmd shell dumpsys package preferred > "$report/preferred-after-provision.txt"
 adb_cmd shell cmd package query-activities --user "$user_id" --brief \
     -a android.intent.action.MAIN -c android.intent.category.HOME > "$report/home-candidates.txt"

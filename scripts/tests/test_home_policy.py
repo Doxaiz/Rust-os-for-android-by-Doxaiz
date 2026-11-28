@@ -84,7 +84,10 @@ class HomePolicyTests(unittest.TestCase):
                 root = Path(tmp)
                 repo = root / 'repo'
                 (repo / 'scripts').mkdir(parents=True)
-                shutil.copyfile(ROOT / 'scripts/test-home-policy.sh', repo / 'scripts/test-home-policy.sh')
+                # Avoid a real 45-second role wait in the failure fixtures.
+                script = (ROOT / 'scripts/test-home-policy.sh').read_text().replace(
+                    'home_deadline=$((SECONDS + 45))', 'home_deadline=$((SECONDS + 0))')
+                (repo / 'scripts/test-home-policy.sh').write_text(script)
                 shutil.copytree(ROOT / 'overlay', repo / 'overlay')
                 (repo / 'scripts/fetch-launcher-apk.sh').write_text('''#!/bin/bash
 set -eu
