@@ -151,14 +151,35 @@ PYCONTROL
 # own-firmware acceptance path, which never assigns HOME.
 adb_cmd shell cmd package set-home-activity --user "$user_id" com.doxaiz.launcher/.MainActivity > "$report/user-choice-doxaiz.txt"
 [ "$(resolve_home)" = com.doxaiz.launcher/.MainActivity ]
-reboot_guest
-adb_cmd shell am start-user -w "$user_id" > "$report/start-user-after-doxaiz-reboot.txt"
-[ "$(resolve_home)" = com.doxaiz.launcher/.MainActivity ]
+# A secondary user is not necessarily foreground/unlocked after a device
+# reboot. Recreate the same user context as before reboot, without assigning
+# HOME again. Keep observations before/after foregrounding to diagnose races.
+verify_choice_after_reboot() {
+    local phase="$1" expected="$2" observed choice_deadline
+    reboot_guest
+    resolve_home > "$report/$phase-background-home.txt"
+    adb_cmd shell cmd role get-role-holders --user "$user_id" android.app.role.HOME \
+        > "$report/$phase-background-role.txt"
+    adb_cmd shell am start-user -w "$user_id" > "$report/$phase-start-user.txt"
+    timeout 90s adb -s "$serial" shell am switch-user -w "$user_id" > "$report/$phase-switch-user.txt"
+    adb_cmd shell wm dismiss-keyguard > "$report/$phase-unlock.txt"
+    choice_deadline=$((SECONDS + 45))
+    while :; do
+        observed="$(resolve_home)"
+        printf '%s\n' "$observed" >> "$report/$phase-resolve-history.txt"
+        [ "$observed" = "$expected" ] && break
+        [ "$SECONDS" -lt "$choice_deadline" ] || break
+        sleep 2
+    done
+    adb_cmd shell cmd role get-role-holders --user "$user_id" android.app.role.HOME \
+        > "$report/$phase-foreground-role.txt"
+    adb_cmd shell dumpsys package preferred > "$report/$phase-preferred.txt"
+    [ "$observed" = "$expected" ]
+}
+verify_choice_after_reboot doxaiz-choice com.doxaiz.launcher/.MainActivity
 adb_cmd shell cmd package set-home-activity --user "$user_id" "$stock_home" > "$report/user-choice.txt"
 [ "$(resolve_home)" = "$stock_home" ]
-reboot_guest
-adb_cmd shell am start-user -w "$user_id" > "$report/start-user-after-reboot.txt"
-[ "$(resolve_home)" = "$stock_home" ]
+verify_choice_after_reboot stock-choice "$stock_home"
 [ "$(adb_cmd shell getenforce | tr -d '\r\n')" = Enforcing ]
 printf '%s\n' 'PASS NEGATIVE CONTROL: XML alone leaves a chooser; explicit choices of Doxaiz and stock HOME each survive reboot.' \
     'NOT a DoxaizOS image build/boot. Overlayfs+system APK injection was used for this integration experiment.' \

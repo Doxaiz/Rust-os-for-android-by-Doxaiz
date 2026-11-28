@@ -33,7 +33,9 @@ elif args[:3] == ['shell', 'dumpsys', 'package']: print('mock preferences')
 elif args[:3] == ['shell', 'cmd', 'role']: pass
 elif args[:4] == ['shell', 'cmd', 'package', 'query-activities']: print('priority=0 a com.doxaiz.launcher/.MainActivity\npriority=0 b com.android.launcher3/.uioverrides.QuickstepLauncher')
 elif args[:2] == ['shell', 'cat']: print('mock XML')
-elif args == ['reboot']: count_file.write_text(str(count + 1))
+elif args == ['reboot']:
+    count_file.write_text(str(count + 1))
+    (root / 'foreground').unlink(missing_ok=True)
 elif args == ['root'] or args == ['disable-verity']: print('mock ok')
 elif args == ['remount']:
     if case == 'remount_failure': sys.exit(1)
@@ -43,6 +45,7 @@ elif args[:1] == ['push']:
 elif args[:3] == ['shell', 'cmd', 'package'] and args[3] == 'resolve-activity':
     if '--user' not in args: print(stock)
     elif case == 'unexpected_initial_choice': print('com.doxaiz.launcher/.MainActivity')
+    elif case == 'background_user' and count >= 5 and not (root / 'foreground').exists(): print('android/com.android.internal.app.ResolverActivity')
     elif (root / 'choice').exists() and not (case == 'lost_choice' and count >= 5): print((root / 'choice').read_text())
     else: print('android/com.android.internal.app.ResolverActivity')
 elif args[:4] == ['shell', 'cmd', 'package', 'set-home-activity']:
@@ -56,7 +59,8 @@ elif args[:3] == ['shell', 'pm', 'remove-user']:
     (root / 'removed').touch()
 elif args[:2] == ['shell', 'getenforce']: print('Enforcing')
 elif args[:1] == ['logcat']: pass
-elif args[:2] == ['shell', 'am']: pass
+elif args[:2] == ['shell', 'am']:
+    if args[2] == 'switch-user': (root / 'foreground').touch()
 elif args[:2] in (['shell', 'mkdir'], ['shell', 'chmod'], ['shell', 'restorecon']): pass
 elif args == ['shell', 'sync']: pass
 else: raise AssertionError(args)
@@ -79,14 +83,15 @@ class HomePolicyTests(unittest.TestCase):
 
     def test_integration_orchestration_and_guards(self):
         for case in ('success', 'outside_hosted', 'wrong_serial', 'phone', 'user_build',
-                     'remount_failure', 'unexpected_initial_choice', 'lost_choice'):
+                     'remount_failure', 'unexpected_initial_choice', 'lost_choice', 'background_user'):
             with self.subTest(case=case), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
                 repo = root / 'repo'
                 (repo / 'scripts').mkdir(parents=True)
                 # Avoid a real 45-second role wait in the failure fixtures.
                 script = (ROOT / 'scripts/test-home-policy.sh').read_text().replace(
-                    'home_deadline=$((SECONDS + 45))', 'home_deadline=$((SECONDS + 0))')
+                    'home_deadline=$((SECONDS + 45))', 'home_deadline=$((SECONDS + 0))').replace(
+                    'choice_deadline=$((SECONDS + 45))', 'choice_deadline=$((SECONDS + 0))')
                 (repo / 'scripts/test-home-policy.sh').write_text(script)
                 shutil.copytree(ROOT / 'overlay', repo / 'overlay')
                 (repo / 'scripts/fetch-launcher-apk.sh').write_text('''#!/bin/bash
@@ -106,14 +111,23 @@ printf fixture > "$root/overlay/vendor/doxaiz/apps/DoxaizLauncher/DoxaizLauncher
                 if case == 'wrong_serial': env['ANDROID_SERIAL'] = 'phone'
                 result = subprocess.run(['bash', str(repo / 'scripts/test-home-policy.sh')],
                                         env=env, capture_output=True, text=True, timeout=15)
-                self.assertEqual(result.returncode == 0, case == 'success', result.stdout + result.stderr)
+                self.assertEqual(result.returncode == 0, case in ('success', 'background_user'), result.stdout + result.stderr)
                 report = repo / 'reports/home-policy'
-                self.assertEqual((report / 'result.txt').exists(), case == 'success')
+                self.assertEqual((report / 'result.txt').exists(), case in ('success', 'background_user'))
                 calls = root / 'calls.jsonl'
                 if case in ('outside_hosted', 'wrong_serial'):
                     self.assertFalse(calls.exists())
                 elif case in ('phone', 'user_build'):
                     self.assertTrue(all(json.loads(line)[:2] == ['shell', 'getprop'] for line in calls.read_text().splitlines()))
+                if case in ('success', 'background_user', 'lost_choice'):
+                    recorded = [json.loads(line) for line in calls.read_text().splitlines()]
+                    assignments = [c for c in recorded if c[:4] == ['shell', 'cmd', 'package', 'set-home-activity']]
+                    self.assertEqual(len(assignments), 1 if case == 'lost_choice' else 2)
+                    self.assertTrue((report / 'doxaiz-choice-resolve-history.txt').exists())
+                    if case == 'background_user':
+                        self.assertIn('ResolverActivity', (report / 'doxaiz-choice-background-home.txt').read_text())
+                        self.assertEqual((report / 'doxaiz-choice-resolve-history.txt').read_text().strip(),
+                                         'com.doxaiz.launcher/.MainActivity')
                 if case in ('success', 'unexpected_initial_choice', 'lost_choice'):
                     self.assertTrue((root / 'removed').exists())
 
