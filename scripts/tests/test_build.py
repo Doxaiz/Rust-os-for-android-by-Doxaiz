@@ -1,5 +1,6 @@
 """Build orchestration with fake repo/envsetup/network, never downloads Android."""
 import hashlib
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -19,6 +20,14 @@ with open(os.environ['BUILD_CALLS'], 'a') as f:
     f.write(sys.argv[1] + '\n')
 if sys.argv[1] == 'init':
     (root / '.repo').mkdir()
+elif sys.argv[1] == 'manifest':
+    if os.environ['BUILD_CASE'] == 'manifest_failure': sys.exit(1)
+    revision = 'main' if os.environ['BUILD_CASE'] == 'unpinned_manifest' else 'a' * 40
+    pathlib.Path(sys.argv[sys.argv.index('-o') + 1]).write_text(
+        '<manifest><project name="fixture" revision="' + revision + '"/></manifest>')
+elif sys.argv[1] == 'diff':
+    if os.environ['BUILD_CASE'] == 'diff_failure': sys.exit(1)
+    print('fixture source diff')
 elif sys.argv[1] == 'sync':
     assert (root / '.repo/local_manifests/doxaiz.xml').is_file()
     if os.environ['BUILD_CASE'] == 'sync_failure':
@@ -65,7 +74,7 @@ class BuildTests(unittest.TestCase):
         for mode in ('relative', 'absolute', 'existing_tree', 'sync_failure',
                      'lunch_failure', 'build_failure', 'missing_launcher',
                      'missing_properties', 'dumpvar_failure', 'unverified_apk',
-                     'cf_source_missing', 'cf_source_ok'):
+                     'cf_source_missing', 'cf_source_ok', 'manifest_failure', 'unpinned_manifest', 'diff_failure'):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory(prefix='build test ') as tmp:
                 root = Path(tmp)
                 bindir = root / 'bin'
@@ -109,14 +118,29 @@ class BuildTests(unittest.TestCase):
                                       (tree / 'packages/apps/Launcher3/AndroidManifest.xml').read_text())
                     self.assertTrue(any(line.startswith('m -j') for line in trace))
                     self.assertIn('=== Готово.', result.stdout)
+                    evidence = next(tree.glob('doxaiz-build-evidence.*'))
+                    metadata = json.loads((evidence / 'source-evidence.json').read_text())
+                    self.assertEqual(metadata['lunch_target'], lunch)
+                    self.assertEqual(metadata['sha256']['DoxaizLauncher.apk'], env['HASH'])
+                    self.assertEqual(hashlib.sha256((evidence / 'source-diff.patch').read_bytes()).hexdigest(),
+                                     metadata['sha256']['source-diff.patch'])
+                    self.assertEqual(json.loads((evidence / 'result.json').read_text())['build_exit_code'], 0)
+
                     self.assertTrue((tree / 'vendor/doxaiz/products/doxaiz_base.mk').is_file())
                     self.assertEqual((tree / 'vendor/doxaiz/apps/DoxaizLauncher/DoxaizLauncher.apk').read_bytes(),
                                      fixture.read_bytes())
                     self.assertFalse((tree / 'android tree').exists())
                 else:
                     self.assertNotIn('=== Готово.', result.stdout)
+                    evidence_dirs = list(tree.glob('doxaiz-build-evidence.*'))
+                    if evidence_dirs:
+                        status = json.loads((evidence_dirs[0] / 'result.json').read_text())
+                        self.assertNotEqual(status['build_exit_code'], 0)
+                        self.assertIn(status['last_phase'], ('source-evidence', 'lunch', 'product-gates', 'compile'))
+
                 if mode in ('sync_failure', 'lunch_failure', 'missing_launcher',
-                            'missing_properties', 'dumpvar_failure', 'unverified_apk', 'cf_source_missing'):
+                            'missing_properties', 'dumpvar_failure', 'unverified_apk', 'cf_source_missing',
+                            'manifest_failure', 'unpinned_manifest', 'diff_failure'):
                     self.assertFalse(any(line.startswith('m ') for line in trace))
 
 

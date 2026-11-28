@@ -243,3 +243,10 @@ Offline fixture покрывает отдельный случай background-us
 Stock negative control также SUCCESS: это ожидаемое отклонение стокового образа, **не положительная приёмка DoxaizOS**. Точные UUID, значения boot_count, PSI/ZRAM и сырой отчёт здесь не переписываются: загрузка artifact `cuttlefish-reference-46155232856` завершилась EOF на внешнем artifact storage. Итог workflow подтверждён API; содержимое artifact локально не проверено. Не делать из SUCCESS вывода о соблюдении memory budget или улучшении скорости.
 
 Готовность остаётся **25–30%**: реальная бесплатная лаборатория и общий lifecycle подтверждены, но собственный системный образ не собран. HOME-контроль новой редакции c2e8ba1 запрошен push-trigger, его итог пока отдельно не подтверждён.
+
+
+### Автоматическое сохранение происхождения перед компиляцией
+
+В `scripts/build.sh` добавлен обязательный source-evidence этап после наложения overlay/HOME patch/проверки APK и до lunch/m. Раньше документация требовала ручной `repo diff`, без которого pinned manifest терял локальную правку Launcher3. Теперь manifest -r и diff сохраняются автоматически в новом каталоге вне out/, вместе с lunch target, Doxaiz commit/worktree status и хешами manifest/diff/APK. Manifest с branch-name вместо SHA, ошибка repo manifest/diff или hash capture не пропускают запуск m. EXIT-отчёт отдельно фиксирует nonzero и фазу отказа; неудачная компиляция не превращается в успешный отчёт происхождения.
+
+Это уменьшает риск потерять source patch при передаче сборки, но **не** решает нехватку build-хоста, не создаёт образы, не архивирует все untracked inputs и не связывает криптографически images/target-files/tools. Полный log и дополнительные inputs надо сохранять отдельно. Новый этап проверен только fake-repo/envsetup fixtures: успешные пути, unpinned manifest, manifest/diff failures и сохранение nonzero статуса. Собственной компиляции по-прежнему нет.

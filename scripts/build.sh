@@ -75,6 +75,56 @@ echo "  \$(call inherit-product, vendor/doxaiz/products/doxaiz_base.mk)"
 echo "  (см. docs/BUILD.md, шаг 6 — без неё DoxaizOS в образ не попадёт)"
 echo
 
+# Manifest -r alone omits our local Launcher3 patch. Capture both only after
+# overlay/patch/APK preparation; fail before compilation if evidence is missing.
+# This directory is outside out/ so a later Android clean does not remove it.
+EVIDENCE="$(mktemp -d "${TREE}/doxaiz-build-evidence.XXXXXXXX")"
+export EVIDENCE
+phase=source-evidence
+finish_evidence() {
+    local code=$?
+    trap - EXIT
+    python3 - "$EVIDENCE" "$code" "$phase" <<'PYRESULT'
+import json
+from pathlib import Path
+import sys
+path, code, phase = sys.argv[1:]
+(Path(path) / 'result.json').write_text(json.dumps({
+    'build_exit_code': int(code), 'last_phase': phase,
+    'scope': 'build-command-only-not-boot-or-CTS',
+}, indent=2) + '\n')
+PYRESULT
+    exit "$code"
+}
+trap finish_evidence EXIT
+repo manifest -r -o "$EVIDENCE/repo-manifest.xml"
+repo diff > "$EVIDENCE/source-diff.patch"
+python3 - "$REPO_ROOT" "$LUNCH_TARGET" "$EVIDENCE" <<'PYEVIDENCE'
+import json
+from pathlib import Path
+import subprocess
+import sys
+root, target, output = sys.argv[1:]
+root, output = Path(root), Path(output)
+# Use the same pinning validation as delivery; do not accept branch names.
+import importlib.util
+spec = importlib.util.spec_from_file_location('bundle', root / 'scripts/firmware-bundle.py')
+bundle = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(bundle)
+bundle.pinned_manifest(output / 'repo-manifest.xml')
+def git(*args):
+    return subprocess.check_output(['git', '-C', str(root), *args], text=True).strip()
+metadata = {'scope': 'source-snapshot-not-build-success', 'lunch_target': target,
+            'doxaiz_commit': git('rev-parse', 'HEAD'),
+            'doxaiz_worktree_status': git('status', '--porcelain'), 'sha256': {}}
+for name in ('repo-manifest.xml', 'source-diff.patch'):
+    metadata['sha256'][name] = bundle.digest(output / name)
+apk = Path('vendor/doxaiz/apps/DoxaizLauncher/DoxaizLauncher.apk')
+metadata['sha256']['DoxaizLauncher.apk'] = bundle.digest(apk)
+(output / 'source-evidence.json').write_text(json.dumps(metadata, indent=2) + '\n')
+PYEVIDENCE
+echo "Source evidence (не доказательство сборки/boot): $EVIDENCE"
+phase=lunch
 echo "=== envsetup + lunch + m ==="
 # shellcheck disable=SC1091
 . build/envsetup.sh
@@ -83,6 +133,7 @@ lunch "${LUNCH_TARGET}"
 echo "=== Проверяю выбранный продукт DoxaizOS ==="
 # Запрашиваем вычисленные Make-переменные, а не grep по исходникам:
 # наличие overlay на диске ещё не означает, что продукт его наследует.
+phase=product-gates
 packages="$(build/soong/soong_ui.bash --dumpvar-mode PRODUCT_PACKAGES)"
 properties="$(build/soong/soong_ui.bash --dumpvar-mode PRODUCT_PROPERTY_OVERRIDES)"
 python3 - "$packages" "$properties" <<'PYPRODUCT'
@@ -96,6 +147,8 @@ if 'ro.config.low_ram=true' not in properties or not any(
         for value in properties):
     raise SystemExit('Ошибка: в продукте нет low-RAM свойств/версии DoxaizOS; проверьте наследование doxaiz_base.mk')
 PYPRODUCT
+phase=compile
 m -j"$(nproc)"
+phase=build-command-completed
 
 echo "=== Готово. Артефакты: ${TREE}/out/target/product/ ==="

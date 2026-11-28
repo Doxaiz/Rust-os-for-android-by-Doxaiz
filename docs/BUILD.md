@@ -270,6 +270,10 @@ repo diff > /absolute/path/source-diff.patch
 sha256sum /absolute/path/source-diff.patch
 ```
 
+`scripts/build.sh` теперь автоматически создаёт новый каталог `doxaiz-build-evidence.XXXXXXXX` в Android-дереве **после** overlay/source patch/APK и **до** lunch/компиляции. В него попадают `repo-manifest.xml` (`repo manifest -r`, все project revision проверяются как SHA-1), `source-diff.patch` (`repo diff`), `source-evidence.json` (lunch, commit/status Doxaiz checkout, SHA-256 manifest/diff/APK) и `result.json` (exit code и последняя фаза). Ошибка manifest/diff/валидации останавливает путь до `m`; ошибка lunch/product gates/m не записывается как успешная сборка. Каталог находится вне `out/`, но сохраняйте его отдельно перед удалением Android-дерева.
+
+**Ограничения:** `repo diff` не архивирует untracked/ignored файлы и не включает содержимое целого vendor overlay; manifest не фиксирует произвольные локальные APK/изменения. Commit/status checkout + APK hash — описание происхождения, не полная герметичная сборка и не подпись. Сохранять исходный Doxaiz checkout, все дополнительные untracked inputs и полный build log отдельно. Статус `build-command-completed` означает лишь exit 0 команды `m`: наличие требуемых dist-артефактов, boot и CTS проверяются отдельно.
+
 Source diff и вывод SHA-256 apply-home-fallback-patch.sh сохранять рядом с полным build log. Текущий bundle автоматически не включает source-diff.patch: без отдельного сохранения локальные изменения Launcher3 не воспроизводятся по одному repo manifest -r. Хеш DoxaizOS commit фиксирует содержимое patch/helper, но не все сторонние изменения Android-дерева.
 
 Из репозитория DoxaizOS экспортируйте комплект (пути placeholders заменить реальными):
