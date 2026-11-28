@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 
 pub mod image;
+mod content;
 
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};

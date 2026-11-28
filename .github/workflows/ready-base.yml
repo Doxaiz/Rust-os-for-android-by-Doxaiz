@@ -105,8 +105,8 @@ jobs:
         run: |
           python3 - <<'PY'
           import shutil
-          if shutil.disk_usage('reports/ready-base').free < 5 * 1024**3:
-              raise SystemExit('Insufficient disk for disposable 4 GiB lab file')
+          if shutil.disk_usage('reports/ready-base').free < 10 * 1024**3:
+              raise SystemExit('Insufficient disk for lab image plus two bounded content dumps')
           PY
           cargo run --release --manifest-path core/Cargo.toml -p doxaiz-hardening --bin doxaiz-normalize-experiment -- \
             --allow-unbooted-experiment reports/ready-base/original.raw reports/ready-base/normalization
@@ -119,7 +119,7 @@ jobs:
           # GitHub caps notices per step. Publish primary verdict first and
           # group all metadata into ONE notice rather than silently losing it.
           groups = {
-              'verdict': ['normalization.txt', 'resize.exit.txt', 'unshare.exit.txt', 'final-fsck.exit.txt'],
+              'verdict': ['normalization.txt', 'content-comparison.txt', 'resize.exit.txt', 'unshare.exit.txt', 'final-fsck.exit.txt'],
               'resize': ['resize.stdout.txt', 'resize.stderr.txt'],
               'unshare': ['unshare.stdout.txt', 'unshare.stderr.txt'],
               'fsck': ['final-fsck.stdout.txt', 'final-fsck.stderr.txt'],
@@ -213,4 +213,6 @@ jobs:
           retention-days: 7
       - name: Delete candidate from disposable runner
         if: always()
-        run: rm -f reports/ready-base/candidate.img.gz reports/ready-base/candidate.img.gz.part reports/ready-base/original.raw reports/ready-base/image-experiment/UNBOOTED-NOT-FOR-FLASH.img reports/ready-base/normalization/UNBOOTED-NOT-FOR-FLASH.img
+        run: |
+          rm -rf reports/ready-base/normalization/content-dumps
+          rm -f reports/ready-base/candidate.img.gz reports/ready-base/candidate.img.gz.part reports/ready-base/original.raw reports/ready-base/image-experiment/UNBOOTED-NOT-FOR-FLASH.img reports/ready-base/normalization/UNBOOTED-NOT-FOR-FLASH.img

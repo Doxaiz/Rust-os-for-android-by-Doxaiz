@@ -245,6 +245,8 @@ pub fn normalize_experiment(input: &Path, output: &Path) -> Result<(), String> {
                 write_probe_file(&output.join(format!("file-{index}-{label}-xattrs.txt")), attrs.as_bytes())?;
             }
         }
+        let audit = crate::content::compare(input, &target, output)?;
+        write_probe_file(&output.join("content-comparison.txt"), audit.as_bytes())?;
         let hash = sha(target_str)?;
         Ok(hash)
     })();
@@ -260,7 +262,7 @@ pub fn normalize_experiment(input: &Path, output: &Path) -> Result<(), String> {
     result.map(|_| ())
 }
 
-fn normalization_stage(output: &Path, stage: &str, program: &str, args: &[&str]) -> Result<(), String> {
+pub(crate) fn normalization_stage(output: &Path, stage: &str, program: &str, args: &[&str]) -> Result<(), String> {
     let mut child = Command::new("timeout").arg("180s").arg(program).args(args)
         .env("LC_ALL", "C").stdout(Stdio::piped()).stderr(Stdio::piped())
         .spawn().map_err(|e| e.to_string())?;
