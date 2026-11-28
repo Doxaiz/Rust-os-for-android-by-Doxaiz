@@ -17,4 +17,8 @@ path = "src/image_main.rs"
 name = "doxaiz-unshare-probe"
 path = "src/unshare_main.rs"
 
+[[bin]]
+name = "doxaiz-normalize-experiment"
+path = "src/normalize_main.rs"
+
 [dependencies]

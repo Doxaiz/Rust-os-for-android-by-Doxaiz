@@ -108,7 +108,7 @@ jobs:
           if shutil.disk_usage('reports/ready-base').free < 5 * 1024**3:
               raise SystemExit('Insufficient disk for disposable 4 GiB lab file')
           PY
-          cargo run --release --manifest-path core/Cargo.toml -p doxaiz-hardening --bin doxaiz-experiment-image -- \
+          cargo run --release --manifest-path core/Cargo.toml -p doxaiz-hardening --bin doxaiz-normalize-experiment -- \
             --allow-unbooted-experiment reports/ready-base/original.raw reports/ready-base/normalization
       - name: Publish bounded normalization diagnostics even on refusal
         if: always()
@@ -116,13 +116,27 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           root = Path('reports/ready-base/normalization')
-          for p in sorted(root.glob('*.txt')):
-              if p.name == 'result.txt' or p.name.startswith('e2fsck.'):
-                  continue
-              text = p.read_text(errors='replace')
-              if len(text) > 5000:
-                  text = text[:2500] + '\n[excerpt shortened; middle discarded]\n' + text[-1500:]
-              print('::notice title=Normalization ' + p.name + '::' + text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
+          # GitHub caps notices per step. Publish primary verdict first and
+          # group all metadata into ONE notice rather than silently losing it.
+          groups = {
+              'verdict': ['normalization.txt', 'resize.exit.txt', 'unshare.exit.txt', 'final-fsck.exit.txt'],
+              'resize': ['resize.stdout.txt', 'resize.stderr.txt'],
+              'unshare': ['unshare.stdout.txt', 'unshare.stderr.txt'],
+              'fsck': ['final-fsck.stdout.txt', 'final-fsck.stderr.txt'],
+              'reviewed-file-metadata': [p.name for p in sorted(root.glob('file-*.txt'))],
+          }
+          for group, names in groups.items():
+              parts = []
+              for name in names:
+                  p = root / name
+                  if p.exists():
+                      text = p.read_text(errors='replace')
+                      if len(text) > 1500:
+                          text = text[:700] + '\n[bounded excerpt]\n' + text[-700:]
+                      parts.append(name + '\n' + text)
+              text = '\n'.join(parts)
+              if text:
+                  print('::notice title=Normalization ' + group + '::' + text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
           PY
       - name: Publish bounded audit facts (including on failure)
         if: always()
