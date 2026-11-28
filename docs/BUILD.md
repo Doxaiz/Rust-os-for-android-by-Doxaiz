@@ -97,21 +97,15 @@ repo sync -c --no-tags --optimized-fetch --prune -j$(nproc)
 /path/to/Rust-os-for-android-by-Doxaiz/scripts/apply-overlay.sh ~/doxaiz-os
 ```
 
-Скрипт копирует `overlay/vendor/doxaiz` → `vendor/doxaiz` и напоминает про следующий шаг — добавить **одну строку** в product make-файл вашего целевого устройства. Для Cuttlefish (виртуальный телефон AOSP) целевой файл — product make того target, который вы собираете (например, `device/google/cuttlefish/…mk` — найдите его так):
+Скрипт копирует `overlay/vendor/doxaiz` → `vendor/doxaiz`.
 
-```bash
-grep -r "PRODUCT_NAME" device/google/cuttlefish/*.mk device/google/cuttlefish/**/*.mk 2>/dev/null | head
-```
+Для Cuttlefish теперь зарегистрирован собственный продукт `doxaiz_cf_x86_64_phone`: он уже наследует upstream и `doxaiz_base.mk`; вручную менять файлы Google не надо. Продукт ещё не прошёл настоящий `lunch/m`.
 
-Добавьте в нужный `…_phone.mk` (рядом с остальными `inherit-product`):
+Для per-device продукта добавьте в product make-файл устройства:
 
 ```makefile
 $(call inherit-product, vendor/doxaiz/products/doxaiz_base.mk)
 ```
-
-Для реального устройства — то же самое: строка в `device/<vendor>/<model>/<model>_<release>.mk`.
-
-Альтернатива без правки файлов устройства: сборка с `TARGET_PRODUCT`-обёрткой, где вы сами наследуете и устройство, и overlay (для этого заведите свой `vendor/doxaiz/products/doxaiz_cf_phone.mk`, который наследует product вашего устройства; путь подставьте по факту, см. шаг выше).
 
 ## 7. Кладём APK Doxaiz Launcher (prebuilt)
 
@@ -128,11 +122,13 @@ $(call inherit-product, vendor/doxaiz/products/doxaiz_base.mk)
 ```bash
 cd ~/doxaiz-os
 source build/envsetup.sh
-lunch aosp_cf_x86_64_phone-trunk_staging-userdebug   # имя target проверьте: lunch без аргументов перечислит варианты
+lunch doxaiz_cf_x86_64_phone-trunk_staging-userdebug  # кандидат, ещё не собран
 m -j$(nproc)
 ```
 
-Если `aosp_cf_x86_64_phone` в вашей ветке не нашёлся — `lunch` покажет список; берите ближайший cuttlefish target (`aosp_cf_x86_64_only_phone-…` в некоторых ветках).
+Продукт наследует проверенный исходник AOSP android-17.0.0_r1 `device/google/cuttlefish/vsoc_x86_64_only/phone/aosp_cf.mk`, сохраняя `PRODUCT_DEVICE=vsoc_x86_64_only`. У upstream включены игнорирование Android.mk и фиксированный Soong system image: просто добавить PRODUCT_PACKAGES недостаточно для нашего Make-prebuilt. Обёртка явно возвращает mixed Make/Soong сборку и отключает фиксированный system image. Проверены только наследование/переменные на GNU Make-фикстуре, не работоспособность Android-сборки. Release config `trunk_staging` взят из upstream AndroidProducts.mk; его совместимость с новым продуктом ещё надо проверить настоящим lunch.
+
+Не заменяйте неработающий doxaiz target ближайшим stock target: так можно незаметно собрать чужую ОС без наших изменений.
 
 ### 8.2. Реальное устройство
 
@@ -169,7 +165,7 @@ launch_cvd --daemon
 adb connect 127.0.0.1:6520 && adb devices
 ```
 
-Либо одной командой: `scripts/cuttlefish-run.sh` (запускает **уже собранный** образ, ждёт `sys.boot_completed=1`, ставит APK, назначает и проверяет HOME, печатает meminfo).
+Для разработки лаунчера, **не для приёмки прошивки**, можно воспользоваться `scripts/cuttlefish-run.sh` (запускает **уже собранный** образ, ждёт `sys.boot_completed=1`, ставит APK, назначает и проверяет HOME, печатает meminfo).
 
 * Адрес ADB по умолчанию — `127.0.0.1:6520` на машине сборщика; переопределение: `DOXAIZ_ADB_TARGET=<serial>`.
 * Ожидание загрузки ограничено 300 секундами: `DOXAIZ_BOOT_TIMEOUT=600 scripts/cuttlefish-run.sh /путь/Launcher.apk`. При таймауте скрипт завершается с ошибкой, не пытаясь установить APK.
@@ -257,3 +253,40 @@ python3 -m unittest discover -s scripts/tests -v
 Механика dumpvar сверена с [LineageOS envsetup.sh (lineage-23.0)](https://github.com/LineageOS/android_build/blob/lineage-23.0/envsetup.sh), `_get_build_var_cached`, через GitHub API 2026-11-23. В современных ветках публичный `get_build_var` может быть отдельной командой, а не shell-функцией; обёртка использует непосредственно Soong UI.
 
 Проверка конфигурации не доказывает, что APK попал в конечный образ, свойства не были переопределены позднее или HOME работает. После сборки обязательны проверка артефактов и запуск по чеклисту. Дополнительные offline-сценарии проверяют отсутствие модуля (включая похожее имя), свойств и ошибку dumpvar с остановкой до `m`.
+
+
+## 12. Доставка собственной сборки на бесплатный тест-хост
+
+После успешной сборки нужно получить image ZIP, `cvd-host_package.tar.gz` и target-files ZIP **одной сборки**. Конкретные dist-цели надо проверить в выбранном Android-дереве; один успешный `m` не обещает наличие всех трёх файлов. Инструмент ниже не собирает их и не подменяет отсутствующие артефакты stock-образами.
+
+В Android-дереве сохраните pinning после завершённого sync:
+
+```bash
+repo manifest -r -o /absolute/path/repo-manifest.xml
+```
+
+Из репозитория DoxaizOS экспортируйте комплект (пути placeholders заменить реальными):
+
+```bash
+python3 scripts/firmware-bundle.py export \
+  --images /absolute/build/images.zip \
+  --host-tools /absolute/build/cvd-host_package.tar.gz \
+  --target-files /absolute/build/target-files.zip \
+  --repo-manifest /absolute/path/repo-manifest.xml \
+  --source-commit "$(git rev-parse HEAD)" \
+  --output reports/own-cuttlefish-bundle
+```
+
+Экспорт читает ожидаемые fingerprint/version/low_ram из build.prop внутри target-files, проверяет наличие APK-entries DoxaizLauncher и pinned project revisions. Копирует images, tools, manifest в новый каталог, считает SHA-256 потоково. Target-files не копируется второй раз, но его SHA-256 записывается. Имя APK-entry — лишь проверка состава, **не** анализ APK/подписи или проверка HOME.
+
+Распечатанный SHA-256 `bundle.json` сохраните через доверенный канал сборщика. На получателе:
+
+```bash
+python3 scripts/firmware-bundle.py verify \
+  --bundle reports/own-cuttlefish-bundle \
+  --metadata-sha256 SHA256_FROM_TRUSTED_BUILD_CHANNEL
+```
+
+Отказ при повреждении, подмене metadata, symlink-артефакте, незакреплённом manifest, отсутствии версии/fingerprint/low_ram/Launcher-entry или перезаписи output. Содержимое архивов не извлекается и не исполняется. Export/verify — **контроль доставки, не boot и не подлинность сборщика**: они не доказывают соответствие images ↔ target-files ↔ tools, хеш commit лишь фиксирует заявленное происхождение. Согласованность обеспечивает доверенная сборочная процедура. Реальных артефактов DoxaizOS пока нет; протестированы синтетические ZIP.
+
+Далее нужны безопасная распаковка/запуск собственного комплекта на подготовленном KVM-хосте и `check-firmware.py` с ожидаемыми значениями из `bundle.json`. Автоматическая загрузка собственного bundle в public CI пока не реализована. Бесплатный эталонный workflow не принимает этот bundle и продолжает запускать Google AOSP — [FIRMWARE-LAB.md](FIRMWARE-LAB.md).

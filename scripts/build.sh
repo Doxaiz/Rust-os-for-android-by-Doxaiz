@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # DoxaizOS: полная сборка прошивки. ВНИМАНИЕ: требует мощный ПК
-# (≥ 16 ГБ ОЗУ, ≥ 250 ГБ SSD, Linux x86_64) — в CI такой прогон не делаем,
+# (официальный ориентир AOSP: 64 ГБ ОЗУ, 400 ГБ свободно, Linux x86_64) — в CI такой прогон не делаем,
 # см. docs/BUILD.md «Где собирать».
 #
 # Использование:
 #   scripts/build.sh /путь/к/будущему/дереву LUNCH_TARGET
 # Примеры:
-#   scripts/build.sh ~/android/doxaiz aosp_cf_x86_64_phone-trunk_staging-userdebug   # Cuttlefish
+#   scripts/build.sh ~/android/doxaiz doxaiz_cf_x86_64_phone-trunk_staging-userdebug # Cuttlefish (ещё не собран)
 #   scripts/build.sh ~/android/doxaiz lineage_<device>-userdebug                   # реальное устройство
-#   scripts/build.sh ~/android/doxaiz doxaiz_arm64-userdebug                       # GSI (любой Treble-телефон; docs/GSI.md)
+#   scripts/build.sh ~/android/doxaiz doxaiz_arm64-userdebug                       # GSI (только совместимые ARM64; docs/GSI.md)
 set -euo pipefail
 
 if [ $# -ne 2 ]; then
@@ -30,11 +30,11 @@ echo "Lunch    : ${LUNCH_TARGET}"
 mem_gb=$(awk '/MemTotal/ {printf "%d", $2/1024/1024}' /proc/meminfo)
 disk_gb=$(df -BG --output=avail "${TREE}" 2>/dev/null | tail -1 | tr -dc '0-9' || echo 0)
 echo "Ресурсы  : RAM ~${mem_gb} ГБ, свободно на диске ~${disk_gb} ГБ"
-if [ "${mem_gb:-0}" -lt 12 ]; then
-    echo "Предупреждение: меньше 12 ГБ ОЗУ — сборка AOSP, скорее всего, не пройдёт." >&2
+if [ "${mem_gb:-0}" -lt 64 ]; then
+    echo "Предупреждение: меньше официального ориентира AOSP 64 ГБ ОЗУ; успешная сборка не гарантируется." >&2
 fi
-if [ "${disk_gb:-0}" -lt 200 ]; then
-    echo "Предупреждение: меньше 200 ГБ на диске — полная синхронизация AOSP не влезет." >&2
+if [ "${disk_gb:-0}" -lt 400 ]; then
+    echo "Предупреждение: меньше официального ориентира AOSP 400 ГБ свободного диска." >&2
 fi
 
 command -v repo >/dev/null 2>&1 || {

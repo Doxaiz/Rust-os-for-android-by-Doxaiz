@@ -156,3 +156,15 @@ Standard hosted Linux для public repo выбран вместо larger runner
 * Cirrus FAQ (индекс поисковика, прямое чтение страницы не удалось): https://cirrus-ci.org/faq/
 
 **До готовой прошивки:** получить бесплатную достаточную сборочную мощность либо честно изменить стратегию производства образа; собрать наш образ с provenance; добавить доставку собственного комплекта; пройти identity gates и системные тесты. Подменять это патчем ro.doxaiz.version поверх чужого stock-образа нельзя.
+
+## Собственный продукт: проверка upstream до сборки
+
+`doxaiz_cf_x86_64_phone` зарегистрирован в vendor/doxaiz/AndroidProducts.mk. При просмотре **точного тега из LineageOS manifest**, а не случайной ветки GitHub, найдены два препятствия для простого inherit overlay: `PRODUCT_IGNORE_ALL_ANDROIDMK := true` (наш Launcher пока Make-prebuilt) и `USE_SOONG_DEFINED_SYSTEM_IMAGE := true` с фиксированным `aosp_shared_system_image`. Кандидат-обёртка отключает эти режимы и PRODUCT_SOONG_ONLY; GNU Make fixture проверяет порядок наследования и значения. Это не доказательство успешной Soong/Make-компиляции; необходимо проверить настоящим lunch/m.
+
+Источники просмотрены 2026-11-23:
+
+* LineageOS manifest, AOSP remote android-17.0.0_r1: https://github.com/LineageOS/android/blob/lineage-24.0/default.xml
+* Регистрация/примеры trunk_staging: https://android.googlesource.com/device/google/cuttlefish/+/refs/tags/android-17.0.0_r1/AndroidProducts.mk
+* Конкретный product, blob cd1e199f714bcc9c2ad8d69b451b2af7c84e7409: https://android.googlesource.com/device/google/cuttlefish/+/refs/tags/android-17.0.0_r1/vsoc_x86_64_only/phone/aosp_cf.mk
+
+Export/verify собственного комплекта описан в [BUILD.md §12](BUILD.md#12-доставка-собственной-сборки-на-бесплатный-тест-хост). Он не получает сборочную мощность и не запускает образы автоматически. Независимая expected identity берётся из target-files, не из getprop тестируемой VM; согласованность всех build outputs остаётся ответственностью доверенного сборщика.

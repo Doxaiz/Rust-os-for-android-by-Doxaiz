@@ -9,4 +9,8 @@
 # покажет сломанный комбо. Только полноценные продукты.
 
 PRODUCT_MAKEFILES := \
-    $(LOCAL_DIR)/products/doxaiz_gsi.mk
+    $(LOCAL_DIR)/products/doxaiz_gsi.mk \
+    doxaiz_cf_x86_64_phone:$(LOCAL_DIR)/products/doxaiz_cuttlefish.mk
+
+COMMON_LUNCH_CHOICES := \
+    doxaiz_cf_x86_64_phone-trunk_staging-userdebug
