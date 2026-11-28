@@ -80,6 +80,11 @@ pub fn experiment(input: &Path, output: &Path) -> Result<(), String> {
         || read_at(&mut original, 1048, 4)? != [2, 0, 0, 0] {
         return Err("only 4096-byte-block ext4 accepted".into());
     }
+    let ro_features = read_at(&mut original, 1124, 4)?;
+    let ro_features = u32::from_le_bytes(ro_features.try_into().map_err(|_| "invalid feature word")?);
+    if ro_features & 0x4000 != 0 {
+        return Err("shared_blocks filesystem refused: cannot prove exclusive file data ownership".into());
+    }
     command("e2fsck", &["-f", "-n", input_str])?;
     let mut mappings = Vec::new();
     for (path, reviewed, replacement) in FILES {
