@@ -114,3 +114,24 @@ Vanilla означает выбор сборки без включённого G
 Добавлен отдельный real-ext4 fixture test: при наличии e2fsprogs создаёт маленькую синтетическую FS через mkfs.ext4 -d и читает её debugfs без mount. В этой sandbox e2fsprogs отсутствует, test явно SKIPPED; такой fixture всё равно не является Android boot.
 
 Повторный run **46161884974** также FAILURE на download (3m8s), filesystem inspection не достигнут. Поэтому версия Android/patch/ELF из данного образа пока не заявляются. Исходный SourceForge file-page endpoint возвращён как первый из ограниченных маршрутов (именно через него был первый успешный download); direct routes оставлены как transport fallback. Все маршруты должны пройти один и тот же SHA continuity pin, иначе анализа не будет.
+
+## Подтверждённый анализ реального образа: run 46162262586 SUCCESS
+
+Третий run с восстановленным исходным download route завершился **SUCCESS**. Через API получен полный JSON notice и сохранён [ready-inspection-46162262586.json](evidence/ready-inspection-46162262586.json). Повторный SHA-256 gzip **совпал** с первым получением. Userspace parser действительно прочитал FS без root/mount; это уже не mock.
+
+| Наблюдение внутри образа | Результат и граница |
+|---|---|
+| Android release / SDK | `14` / `34`, из `/system/build.prop` |
+| Заявленная LineageOS | `21.0-20261109-UNOFFICIAL-a64_bvN` |
+| Заявленный platform security patch | `2026-11-01`; не проверка полноты исправлений и не patch vendor телефона |
+| `ro.product.cpu.abi` | `armeabi-v7a` |
+| ELF `/bin/app_process32` и `/system/bin/app_process32` | ELF32, machine 40 (ARM) |
+| app_process64 по двум фиксированным путям | Не найден; не полная инвентаризация любых 64-битных компонентов |
+| Fingerprint | `google/lineage_a64_bvN/tdgsi_a64_ab:14/UQ1A.240205.004/crossgate11090826:userdebug/test-keys` |
+| `ro.config.low_ram` | Не найден в распознанных свойствах прочитанного build.prop; effective runtime value ещё неизвестно |
+
+**Вывод для выбора базы:** название A64 подтверждено ARM32 runtime и ABI свойством внутри файла; это не ARM64 system image. Префикс `google/` в fingerprint не делает его прошивкой Pixel, официальным Google ROM или прошивкой с Google-сертификацией. `userdebug/test-keys` явно не production-hardening/подпись доверенного издателя. Свойство Treble=true внутри GSI не доказывает Treble/совместимость телефона.
+
+На данном этапе база годится как **конкретный проверяемый кандидат**, не как одобренная финальная поставка. Стандартное low-RAM поведение ещё не подтверждено; не переносить наши Make-свойства на готовый образ без отдельного теста. Имена app/priv-app каталогов сохранены в workflow artifacts, но полный состав APK/permissions/signatures и отсутствие GApps не удостоверены; raw artifact локально не скачан. Нет boot, тестов MediaTek HAL/связи/камеры, performance измерений и подтверждённой publisher signature.
+
+Итого локально 25 test methods: 24 PASS, 1 real-ext4 fixture SKIPPED из-за отсутствия e2fsprogs в sandbox. Реальная GSI inspection выполнена отдельно на hosted runner. Готовность DoxaizOS **25–30%**; наличие изученного стороннего ROM не равно готовому собственному образу.

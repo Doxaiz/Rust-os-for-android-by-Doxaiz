@@ -1,0 +1,52 @@
+{
+  "passed": true,
+  "scope": "read-only-untrusted-filesystem-inspection",
+  "publisher_authenticated": false,
+  "boot_tested": false,
+  "device_compatible": null,
+  "properties_by_path": {
+    "/system/build.prop": {
+      "ro.system.build.fingerprint": "google/lineage_a64_bvN/tdgsi_a64_ab:14/UQ1A.240205.004/crossgate11090826:userdebug/test-keys",
+      "ro.system.build.version.release": "14",
+      "ro.system.build.version.sdk": "34",
+      "ro.build.version.sdk": "34",
+      "ro.build.version.release": "14",
+      "ro.build.version.security_patch": "2026-11-01",
+      "ro.product.cpu.abi": "armeabi-v7a",
+      "ro.treble.enabled": "true",
+      "ro.lineage.version": "21.0-20261109-UNOFFICIAL-a64_bvN",
+      "ro.lineage.build.version": "21.0"
+    }
+  },
+  "elf_by_path": {
+    "/bin/app_process32": {
+      "class_bits": 32,
+      "machine": 40
+    },
+    "/system/bin/app_process32": {
+      "class_bits": 32,
+      "machine": 40
+    }
+  },
+  "diagnostics": {
+    "/build.prop": "debugfs 1.47.0 (5-Feb-2023)\n/build.prop: File not found by ext2_lookup \n",
+    "/system/build.prop": "debugfs 1.47.0 (5-Feb-2023)\n",
+    "/system/system/build.prop": "debugfs 1.47.0 (5-Feb-2023)\n/system/system/build.prop: File not found by ext2_lookup \n",
+    "/bin/app_process32": "debugfs 1.47.0 (5-Feb-2023)\n",
+    "/system/bin/app_process32": "debugfs 1.47.0 (5-Feb-2023)\n",
+    "/bin/app_process64": "debugfs 1.47.0 (5-Feb-2023)\n/bin/app_process64: File not found by ext2_lookup \n",
+    "/system/bin/app_process64": "debugfs 1.47.0 (5-Feb-2023)\n/system/bin/app_process64: File not found by ext2_lookup \n",
+    "/app": "debugfs 1.47.0 (5-Feb-2023)\n/app: File not found by ext2_lookup \n",
+    "/priv-app": "debugfs 1.47.0 (5-Feb-2023)\n/priv-app: File not found by ext2_lookup \n",
+    "/system/app": "debugfs 1.47.0 (5-Feb-2023)\n",
+    "/system/priv-app": "debugfs 1.47.0 (5-Feb-2023)\n"
+  },
+  "observed_compressed_sha256": "7000876dee2b0f6f0814431626c495b0f254b00456c88964dee2a68473b3b146",
+  "expanded_bytes": 1815896064,
+  "evidence": {
+    "run_url": "https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/runs/46162262586",
+    "source_commit": "0b0f7c0734ff2d3f8295a13d1fb37d854a92a5b6",
+    "check_run_id": 141031967902,
+    "conclusion": "success"
+  }
+}
