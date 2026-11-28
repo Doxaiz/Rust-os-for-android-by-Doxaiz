@@ -27,6 +27,17 @@ class InspectGSITests(unittest.TestCase):
         self.assertEqual(module.elf_header(data), {'class_bits': 32, 'machine': 40})
         self.assertIsNone(module.elf_header(b'not elf'))
 
+    def test_listing_parsing_and_guards(self):
+        data = b'/2/040755/0/0/.//\n/3/040755/0/0/..//\n/42/040755/0/0/Settings//\n/43/100644/0/0/example.rc/123/\n'
+        entries = module.parse_listing(data)
+        self.assertEqual([e['name'] for e in entries], ['Settings', 'example.rc'])
+        self.assertEqual(entries[0]['kind'], 'directory')
+        self.assertEqual(entries[1]['kind'], 'file')
+        for value in (b'not a listing', b'/x/040755/0/0/Foo//', b'/4/invalid/0/0/Foo//',
+                      b'/4/040755/0/0/bad\x01name//', b'/4/040755/0/0/Foo//\n' * 513):
+            with self.assertRaises(ValueError):
+                module.parse_listing(value)
+
     def test_inspection_and_failures(self):
         for case in ('success', 'bad_hash', 'missing_props', 'debugfs_timeout', 'expanded_limit', 'bad_header'):
             with self.subTest(case=case), tempfile.TemporaryDirectory() as tmp:
@@ -43,11 +54,16 @@ class InspectGSITests(unittest.TestCase):
                     if case == 'debugfs_timeout': raise subprocess.TimeoutExpired('debugfs', 25)
                     if 'build.prop' in command and case != 'missing_props':
                         return b'ro.build.version.sdk=34\nro.build.version.security_patch=2026-11-01\n', ''
+                    if command == 'ls -p /system/app':
+                        return b'/42/040755/0/0/Settings//\n', ''
                     return b'', 'unavailable'
                 with patch.object(module, 'read_debugfs', side_effect=reader) as debugfs:
                     result = module.inspect(image, expected, root / 'report',
                                             maximum=1 if case == 'expanded_limit' else 8192)
                 self.assertEqual(result['passed'], case == 'success')
+                if case == 'success':
+                    self.assertEqual(result['inventory_by_path']['/system/app']['entries'][0]['name'], 'Settings')
+                    self.assertEqual(result['inventory_by_path']['/product/app']['status'], 'unavailable')
                 self.assertFalse(result['publisher_authenticated'])
                 self.assertFalse(result['boot_tested'])
                 self.assertIsNone(result['device_compatible'])
@@ -64,6 +80,7 @@ class InspectGSITests(unittest.TestCase):
             root = Path(tmp)
             tree = root / 'tree'
             (tree / 'system/bin').mkdir(parents=True)
+            (tree / 'system/app/FixtureApp').mkdir(parents=True)
             (tree / 'system/build.prop').write_text('ro.build.version.sdk=34\nro.build.version.security_patch=2026-11-01\n')
             elf = bytearray(20)
             elf[:6] = b'\x7fELF\x01\x01'
@@ -83,6 +100,7 @@ class InspectGSITests(unittest.TestCase):
             self.assertEqual(result['properties_by_path']['/system/build.prop']['ro.build.version.sdk'], '34')
             self.assertEqual(result['elf_by_path']['/system/bin/app_process32']['class_bits'], 32)
             self.assertFalse(result['boot_tested'])
+            self.assertIn('FixtureApp', [e['name'] for e in result['inventory_by_path']['/system/app']['entries']])
 
     def test_debugfs_readonly_command(self):
         with tempfile.TemporaryDirectory() as tmp:

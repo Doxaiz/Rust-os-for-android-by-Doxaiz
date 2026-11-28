@@ -41,6 +41,26 @@ def parse_props(data):
     return result
 
 
+def parse_listing(data):
+    """Parse debugfs ls -p output, never use image names as commands/paths."""
+    entries = []
+    for line in data.decode('utf-8', errors='strict').splitlines():
+        parts = line.split('/')
+        if len(parts) < 7 or parts[0] or not parts[1].isdigit():
+            raise ValueError('unrecognized debugfs listing format')
+        mode = int(parts[2], 8)
+        name = parts[5]
+        if name in ('.', '..'):
+            continue
+        if not name or any(ord(c) < 32 for c in name):
+            raise ValueError('invalid listing name')
+        kind = {0o040000: 'directory', 0o100000: 'file', 0o120000: 'symlink'}.get(mode & 0o170000, 'other')
+        entries.append({'name': name, 'kind': kind, 'inode': int(parts[1])})
+        if len(entries) > 512:
+            raise ValueError('listing entry limit exceeded')
+    return entries
+
+
 def elf_header(data):
     if len(data) < 20 or data[:4] != b'\x7fELF' or data[4] not in (1, 2) or data[5] not in (1, 2):
         return None
@@ -83,7 +103,7 @@ def inspect(image, expected, output, maximum=8 * 1024**3):
     result = {'passed': False, 'scope': 'read-only-untrusted-filesystem-inspection',
               'publisher_authenticated': False, 'boot_tested': False,
               'device_compatible': None, 'properties_by_path': {}, 'elf_by_path': {},
-              'diagnostics': {}, 'observed_compressed_sha256': None}
+              'diagnostics': {}, 'inventory_by_path': {}, 'observed_compressed_sha256': None}
     try:
         digest = hashlib.sha256()
         with image.open('rb') as stream:
@@ -123,11 +143,26 @@ def inspect(image, expected, output, maximum=8 * 1024**3):
                 info = elf_header(data)
                 if info:
                     result['elf_by_path'][path] = info
-            for path in ('/app', '/priv-app', '/system/app', '/system/priv-app'):
+            # Include partition aliases, but never sum them as unique packages.
+            # This enumerates module directories, NOT APK identities or services running.
+            for path in ('/app', '/priv-app', '/system/app', '/system/priv-app',
+                         '/product/app', '/product/priv-app', '/system/product/app',
+                         '/system/product/priv-app', '/system_ext/app', '/system_ext/priv-app',
+                         '/system/system_ext/app', '/system/system_ext/priv-app',
+                         '/etc/init', '/system/etc/init'):
+
                 data, diagnostic = read_debugfs(raw, 'ls -p ' + path, work)
                 result['diagnostics'][path] = diagnostic
                 if data:
                     (output / (path.strip('/').replace('/', '-') + '-listing.txt')).write_bytes(data)
+                    try:
+                        entries = parse_listing(data)
+                        result['inventory_by_path'][path] = {'status': 'listed', 'entries': entries}
+                    except ValueError as error:
+                        result['inventory_by_path'][path] = {'status': 'unparsed', 'error': str(error)}
+                else:
+                    result['inventory_by_path'][path] = {'status': 'unavailable'}
+
             if not any(result['properties_by_path'].values()):
                 raise ValueError('no recognized system properties; inspection incomplete')
             result['passed'] = True
