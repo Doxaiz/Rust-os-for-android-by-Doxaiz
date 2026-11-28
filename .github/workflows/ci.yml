@@ -23,6 +23,18 @@ jobs:
         working-directory: core
         run: cargo test --workspace --all-targets
 
+      - name: Rust PSI parser release smoke (host Linux, NOT phone performance)
+        working-directory: core
+        run: |
+          printf 'some avg10=1.25 avg60=0.50 avg300=0.10 total=123456\nfull avg10=0.25 avg60=0.10 avg300=0.01 total=1234\n' > /tmp/doxaiz-memory.psi
+          cargo run --release -p doxaiz-metrics --bin doxaiz-check -- psi /tmp/doxaiz-memory.psi
+          # Real host data is ONLY parser interoperability, not DoxaizOS metrics.
+          if [ -r /proc/pressure/memory ]; then
+            cargo run --release -p doxaiz-metrics --bin doxaiz-check -- psi /proc/pressure/memory
+          else
+            echo 'Host PSI unavailable; synthetic smoke only, not a measured phone result.'
+          fi
+
       - name: cargo clippy (информативно, не блокирует)
         working-directory: core
         continue-on-error: true

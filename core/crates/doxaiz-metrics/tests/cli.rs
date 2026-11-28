@@ -58,3 +58,30 @@ fn launch_status_and_state_are_required_for_coldstart_success() {
         check("coldstart", &format!("{prefix}\nTotalTime: 0\nComplete"), code);
     }
 }
+
+#[test]
+fn psi_reports_measurement_without_claiming_budget_success() {
+    let path = std::env::temp_dir().join(format!(
+        "doxaiz-psi-{}-{}.txt", std::process::id(), NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    for (content, code) in [
+        ("some avg10=99.00 avg60=80 avg300=50 total=100\nfull avg10=50 avg60=10 avg300=1 total=50", 0),
+        ("", 2),
+        ("some avg10=NaN avg60=0 avg300=0 total=0", 2),
+    ] {
+        fs::write(&path, content).unwrap();
+        let output = Command::new(env!("CARGO_BIN_EXE_doxaiz-check"))
+            .arg("psi").arg(&path).output().unwrap();
+        assert_eq!(output.status.code(), Some(code));
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(!stdout.contains("бюджет выполнен"));
+        if code == 0 {
+            assert!(stdout.contains("NOT a performance-budget PASS"));
+            assert!(stdout.contains("99.00%"));
+        }
+    }
+    fs::remove_file(&path).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_doxaiz-check"))
+        .arg("psi").arg(&path).output().unwrap();
+    assert_eq!(output.status.code(), Some(2));
+}

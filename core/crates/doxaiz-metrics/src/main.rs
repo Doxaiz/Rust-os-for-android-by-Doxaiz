@@ -10,11 +10,12 @@
 //! Код выхода: 0 — все проверки PASS; 1 — FAIL/ошибка; 2 — неполные данные (Unknown).
 
 use std::fs;
+use std::io::Read;
 use std::path::Path;
 use std::process::ExitCode;
 
 use doxaiz_metrics::{
-    check_budget, check_cold_start, check_gfxinfo, check_pkg_meminfo, parse_am_start_output,
+    parse_memory_pressure, check_budget, check_cold_start, check_gfxinfo, check_pkg_meminfo, parse_am_start_output,
     parse_gfxinfo_summary, parse_meminfo, parse_pkg_meminfo_total, Budget, Verdict,
 };
 
@@ -24,6 +25,7 @@ fn usage() {
     eprintln!("  meminfo [файл]   /proc/meminfo (по умолчанию) или файл");
     eprintln!("  coldstart <файл>  вывод adb shell am start -W ...");
     eprintln!("  jank <файл>       вывод adb shell dumpsys gfxinfo <pkg>");
+    eprintln!("  psi <файл>        /proc/pressure/memory, измерение без PASS бюджета");
     eprintln!("  pss <файл>        вывод adb shell dumpsys meminfo <pkg>");
     eprintln!("Подсказка: adb shell cat /proc/meminfo > meminfo.txt && doxaiz-check meminfo");
 }
@@ -80,6 +82,31 @@ fn requiring_file(args: &[String], usage_line: &str) -> Result<String, ExitCode>
     }
 }
 
+fn psi_mode(path: &str) -> ExitCode {
+    let mut content = String::new();
+    let read = fs::File::open(path)
+        .and_then(|file| file.take(4097).read_to_string(&mut content));
+    if let Err(error) = read {
+        eprintln!("PSI unavailable: {error}; not zero pressure");
+        return ExitCode::from(2);
+    }
+    match parse_memory_pressure(&content) {
+        Ok(pressure) => {
+            println!("PSI measurement only, NOT a performance-budget PASS");
+            for (name, row) in [("some", pressure.some), ("full", pressure.full)] {
+                println!("{name}: avg10={:.2}% avg60={:.2}% avg300={:.2}% total_us={}",
+                         row.avg10, row.avg60, row.avg300, row.total_us);
+            }
+            println!("total_us is cumulative; no interval or ROM comparison inferred");
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("PSI inconclusive: {error}; not zero pressure");
+            ExitCode::from(2)
+        }
+    }
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let Some(first) = args.first() else {
@@ -113,6 +140,10 @@ fn main() -> ExitCode {
                 }
                 Err(code) => code,
             },
+            Err(code) => code,
+        },
+        "psi" => match requiring_file(&args[1..], "adb shell cat /proc/pressure/memory > memory.psi") {
+            Ok(path) => psi_mode(&path),
             Err(code) => code,
         },
         "pss" => match requiring_file(&args[1..], "adb shell dumpsys meminfo <pkg> > pss.txt") {
