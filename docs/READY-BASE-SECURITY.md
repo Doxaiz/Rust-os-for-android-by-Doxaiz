@@ -164,3 +164,23 @@ doxaiz-normalize-experiment --allow-unbooted-experiment PINNED_RAW_IMAGE NEW_REP
 **Снято:** техническая невозможность сделать unshare именно на данном host-кандидате при наличии дополнительного места. **Не снято:** security acceptance ROM, полнота сохранения содержимого/metadata, интеграция замен, AVB, совместимость vendor и размер реального раздела, загрузка/работоспособность/экономия RAM. Предыдущий отрицательный результат остаётся верен для оригинального размера.
 
 Следующий gate — независимый полный manifest содержимого/metadata до/после normalization (включая symlinks, hardlinks и xattrs), затем новый baseline и повторное планирование двухфайловой правки. Не использовать исходные offsets как разрешение на запись. Только после этого — отдельный patch experiment; ни загрузка, ни ускорение данным тестом не подтверждены. Общая готовность остаётся **25–30%**.
+
+## Проверка всего обычного файлового содержимого после normalization
+
+Добавлен dependency-free Rust модуль `content.rs`. Он читает allocation bitmap/inode tables обоих ext4, сравнивает наборы выделенных обычных inode и размеры, затем формирует debugfs batch dumps по **числовым inode**. Ни один путь внутри Android image не используется как host pathname. Все dump destinations — операторский каталог + число inode, без извлечения Android directory tree на хост. Каждая выгрузка обязана быть обычным файлом точного inode-размера; отсутствие/обрезка — отказ. Потоки сравниваются побайтово с фиксированными буферами, без загрузки гигабайтов в RAM.
+
+[Run **46180893633**](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/runs/46180893633), source b83e0cd, **SUCCESS**:
+
+- наборы non-reserved allocated regular inode и их размеры до/после совпали;
+- **5474 обычных файла**, **2033029986 logical bytes** сравнены побайтово, все равны;
+- зарезервированные inode 1–10 исключены явно: resize inode — metadata файловой системы, не пользовательский regular file;
+- source SHA неизменен; resize/unshare/final fsck exit 0; shared_blocks после unshare отсутствует;
+- temporary dumps и увеличенная копия удалены. Сохранены только отчёты, не содержимое прошивки.
+
+[Evidence](evidence/regular-content-46180893633.json), [полный CI 46180900433](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/runs/46180900433) SUCCESS. Новый SHA увеличенной копии отличается от предыдущего прогона: эти transformations не заявлены bit-reproducible. Поэтому проверяются **логические байты файлов**, а не равенство полного image SHA между разными normalization runs.
+
+Границы поддержки: только 4096-byte ext4, ограниченное число inode/размер inode и descriptor, неподдерживаемые meta_bg/inline-data/encryption layouts отвергаются. Память ограничена буферами и небольшим inode map; временный disk I/O может быть существенным. Дополнительно установлен предел до 10000 обычных файлов и 4 GiB суммарного logical content, CI требует 10 GiB свободного места перед copy+dumps. Хостовые debugfs имеют timeout и bounded head/tail log capture.
+
+**Это не полный filesystem manifest.** Все directory entries, symlinks, special files, hardlink topology и полные значения всех xattrs/metadata пока не сверены. Не предполагается, что fsck заменяет такую сверку. Старые offsets не становятся разрешёнными для редактора. Remote-support замены всё ещё не применены; security blocker/boot/AVB/vendor/partition fit/RAM остаются открыты. Прогресс — переход от двух content checks к проверке всего обычного файлового содержимого; готовность пока **25–30%**.
+
+Повторный реальный run **46181124046** на c3ff0d0 также SUCCESS: 5474/2033029986 bytes, equality=true. Full CI **46181124022** SUCCESS, включая новые synthetic allocation-bitmap tests (allocated vs unallocated, directory vs regular, reserved inode exclusion, unsupported meta_bg и truncated input refusal) и streaming comparison tests (изменение последнего байта/длины/пустой поток). Это тесты host-парсера, не Android boot. Repeat verdict добавлен в тот же evidence JSON.

@@ -20,6 +20,8 @@ Read-only unshare feasibility: run 46178504921 записал диагности
 
 **Новый положительный результат — только host layout:** run 46179580865 SUCCESS. Rust-инструмент на отдельной 4 GiB копии выполнил resize2fs → unshare → финальный read-only fsck exit 0; shared_blocks снят штатным unshare, исходный SHA неизменен. Содержимое двух reviewed файлов сохранено, но полная сверка всех файлов/metadata отсутствует. Копия удалена, hardening не применён, boot/partition fit не проверены. [Evidence](evidence/normalization-46179580865.json). Это снимает host-техническое препятствие для следующего эксперимента, **не security blocker ROM**. Готовность пока **25–30%**.
 
+**Расширенная проверка содержимого:** run 46180893633 SUCCESS — Rust сравнил inode identities/sizes и побайтово **5474 обычных файла / 2033029986 bytes** исходника и нормализованной копии. Различий нет; copy/dumps удалены. Directory entries/symlinks/special files/все metadata/xattrs пока не покрыты, hardening не применён. [Evidence](evidence/regular-content-46180893633.json). Это не полный manifest и не boot; **25–30%**.
+
 ## Три уровня готовности
 
 | Уровень | Состояние | Пояснение |
