@@ -86,16 +86,21 @@ jobs:
               # separate and inventory in small reconstructable path chunks.
               inventory = result.pop('inventory_by_path', {})
               print('::notice title=UNTRUSTED GSI properties::' + json.dumps(result).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
+              # GitHub also caps annotations per step. Deduplicate partition
+              # aliases and publish at most eight small groups (plus two above).
+              groups = {}
               for path, info in inventory.items():
-                  entries = info.get('entries', [])
-                  chunks = [entries[i:i+40] for i in range(0, len(entries), 40)] or [[]]
-                  for index, chunk in enumerate(chunks):
-                      record = {'path': path, 'status': info['status'], 'chunk': index,
-                                'chunks': len(chunks), 'entry_count': len(entries),
-                                'entries': [{'name': e['name'], 'kind': e['kind']} for e in chunk]}
-                      if 'error' in info:
-                          record['error'] = info['error']
-                      print('::notice title=UNTRUSTED GSI inventory::' + json.dumps(record).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
+                  key = (info['status'], tuple(e['name'] for e in info.get('entries', [])))
+                  groups.setdefault(key, []).append(path)
+              if len(groups) > 8:
+                  raise SystemExit('Too many distinct inventories for complete API evidence; see artifact')
+              for (status, names), paths in groups.items():
+                  record = {'paths': paths, 'status': status, 'names': names,
+                            'scope': 'directory-entry-names-not-APK-IDs'}
+                  text = json.dumps(record)
+                  if len(text.encode()) > 7000:
+                      raise SystemExit('Inventory notice too large; see artifact')
+                  print('::notice title=UNTRUSTED GSI inventory group::' + text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as stream:
               stream.write(summary)
           PY
