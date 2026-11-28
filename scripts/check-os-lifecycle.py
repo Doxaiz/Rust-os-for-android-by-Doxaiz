@@ -143,6 +143,9 @@ def main():
             time.sleep(max(0, min(2, deadline - time.monotonic())))
         else:
             raise LifecycleFailed('No confirmed kernel reboot + increased boot count + completed Android boot')
+        require(result['boot_id_after'] != before_id, 'Kernel boot UUID changed')
+        require(result['boot_count_after'] > int(before_count), 'Android boot count increased')
+        require(completed == '1', 'Android boot completed after kernel reboot')
         require(adb('read-marker', 'shell', 'cat', marker) == token,
                 'Userdata marker survived reboot unchanged')
         require(adb('after-fingerprint', 'shell', 'getprop', 'ro.build.fingerprint') == fingerprint,
@@ -160,6 +163,7 @@ def main():
             if cleanup is None:
                 result['passed'] = False
                 result.setdefault('error', 'Cannot remove disposable test marker')
+                print('FAIL: cannot remove disposable test marker', file=sys.stderr)
         (args.output / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
     if result['passed']:
         print('PASS: disposable Cuttlefish kernel reboot, userdata and service continuity ONLY; not full firmware acceptance')

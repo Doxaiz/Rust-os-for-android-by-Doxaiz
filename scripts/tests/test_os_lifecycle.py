@@ -1,5 +1,7 @@
 """Synthetic ADB/clock tests only; never evidence of a real kernel boot."""
+import contextlib
 import importlib.util
+import io
 import json
 from pathlib import Path
 import re
@@ -41,6 +43,10 @@ class FakeADB:
         args = command[3:]
         self.commands.append(args)
         code, value = 0, ''
+        if self.case == 'adb_timeout' and args == ['shell', 'getprop', 'ro.hardware']:
+            raise subprocess.TimeoutExpired(command, kwargs['timeout'])
+        if self.case == 'adb_missing':
+            raise FileNotFoundError('synthetic missing adb')
         if args == ['shell', 'getprop', 'ro.hardware']:
             value = 'mt6765' if self.case == 'phone' else 'cutf_cvm'
         elif args == ['shell', 'getprop', 'sys.boot_completed']:
@@ -73,6 +79,8 @@ class FakeADB:
             pass
         elif args[0] == 'shell' and len(args) == 2 and args[1].startswith("printf '%s'"):
             self.marker = re.search(r"printf '%s' '([0-9a-f]+)'", args[1]).group(1)
+            if self.case == 'marker_write_failure':
+                code = 1
         elif args[:2] == ['shell', 'cat'] and args[2].startswith('/data/local/tmp/doxaiz-lifecycle-'):
             value = 'lost' if self.case == 'marker_lost' else self.marker
         elif args[:3] == ['shell', 'rm', '-f']:
@@ -93,14 +101,15 @@ class OSLifecycleTests(unittest.TestCase):
         for case in ('success', 'transport_recovery', 'phone', 'not_booted', 'invalid_boot_id',
                      'reboot_failure', 'same_boot', 'same_count', 'never_boots', 'marker_lost',
                      'fingerprint_changed', 'after_selinux', 'after_service', 'optional_missing',
-                     'cleanup_failure'):
+                     'cleanup_failure', 'adb_timeout', 'adb_missing', 'marker_write_failure'):
             with self.subTest(case=case), tempfile.TemporaryDirectory() as tmp:
                 output = Path(tmp) / 'report'
                 adb = FakeADB(case)
                 clock = FakeClock()
                 argv = [str(SCRIPT), '--serial', '127.0.0.1:6520', '--output', str(output),
                         '--allow-disposable-reboot', '--boot-timeout', '3']
-                with patch.object(sys, 'argv', argv), patch.object(lifecycle.subprocess, 'run', adb), \
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()), \
+                        patch.object(sys, 'argv', argv), patch.object(lifecycle.subprocess, 'run', adb), \
                         patch.object(lifecycle.time, 'monotonic', clock.now), \
                         patch.object(lifecycle.time, 'sleep', clock.sleep):
                     code = lifecycle.main()
@@ -110,10 +119,11 @@ class OSLifecycleTests(unittest.TestCase):
                 self.assertEqual(report['passed'], success)
                 self.assertEqual(output.stat().st_mode & 0o777, 0o700)
                 self.assertIn('cuttlefish-reboot-persistence-only', report['scope'])
-                rebooted = case not in ('phone', 'not_booted', 'invalid_boot_id')
+                rebooted = case not in ('phone', 'not_booted', 'invalid_boot_id', 'adb_timeout',
+                                        'adb_missing', 'marker_write_failure')
                 self.assertEqual(['reboot'] in adb.commands, rebooted)
-                if rebooted:
-                    self.assertTrue(any(c[:3] == ['shell', 'rm', '-f'] for c in adb.commands))
+                cleanup_attempted = rebooted or case == 'marker_write_failure'
+                self.assertEqual(any(c[:3] == ['shell', 'rm', '-f'] for c in adb.commands), cleanup_attempted)
                 if success:
                     self.assertNotEqual(report['boot_id_before'], report['boot_id_after'])
                     self.assertGreater(report['boot_count_after'], report['boot_count_before'])
@@ -129,14 +139,16 @@ class OSLifecycleTests(unittest.TestCase):
             for extra, serial in (([], '127.0.0.1:6520'), (['--allow-disposable-reboot'], 'phone')):
                 argv = base.copy()
                 argv[2] = serial
-                with patch.object(sys, 'argv', argv + extra), patch.object(lifecycle.subprocess, 'run') as adb:
+                with contextlib.redirect_stderr(io.StringIO()), \
+                        patch.object(sys, 'argv', argv + extra), patch.object(lifecycle.subprocess, 'run') as adb:
                     with self.assertRaises(SystemExit):
                         lifecycle.main()
                     adb.assert_not_called()
                 self.assertFalse(output.exists())
             output.mkdir()
             (output / 'keep').write_text('old evidence')
-            with patch.object(sys, 'argv', base + ['--allow-disposable-reboot']), \
+            with contextlib.redirect_stderr(io.StringIO()), \
+                    patch.object(sys, 'argv', base + ['--allow-disposable-reboot']), \
                     patch.object(lifecycle.subprocess, 'run') as adb:
                 self.assertEqual(lifecycle.main(), 1)
                 adb.assert_not_called()

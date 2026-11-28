@@ -114,7 +114,12 @@ sys.argv = [sys.argv[0], '-s', 'selected-test-device', *args]
                     self.assertEqual(data['passed'], case not in ('wrong_version', 'wrong_home'))
                     after = output / 'firmware-gates-after-reboot/result.json'
                     if case in ('success', 'stop_failure', 'after_home', 'after_version'):
-                        self.assertEqual(json.loads(after.read_text())['passed'], case in ('success', 'stop_failure'))
+                        after_result = json.loads(after.read_text())
+                        self.assertEqual(after_result['passed'], case in ('success', 'stop_failure'))
+                        if case == 'after_home':
+                            self.assertEqual(after_result['error'], 'Default HOME resolves to preinstalled Launcher without reassignment')
+                        if case == 'after_version':
+                            self.assertEqual(after_result['error'], 'DoxaizOS version matches independent expected build')
                         self.assertTrue(json.loads((output / 'lifecycle/result.json').read_text())['passed'])
                     elif case == 'reboot_failure':
                         self.assertFalse(after.exists())

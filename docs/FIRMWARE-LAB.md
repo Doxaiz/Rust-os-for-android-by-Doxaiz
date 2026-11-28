@@ -207,3 +207,22 @@ Export/verify собственного комплекта описан в [BUILD
 Последний эксперимент [46153393558](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/runs/46153393558), `8aa9f32`: **финальный результат не подтверждён**. `gh run watch` завершился с 0, но последняя полученная сводка ещё показывала running; дополнительный `gh run view` вернул HTTP403 `API rate limit exceeded`. Поэтому не считаем этот run SUCCESS и не утверждаем, что явный выбор пережил reboot. Лимит GitHub API не является ошибкой аутентификации; новые токены не запрашивались, обход лимита не предпринимался. Для следующих наблюдений задавать больший interval вместо частого default polling.
 
 Локально после последних изменений: 17 unittest methods (включая вложенные сценарии) PASS, это не 17 прогонов ОС. Общая готовность остаётся 25–30%; blocker полной сборки собственного образа не снят.
+
+## Усиление приёмки: ядро действительно перезагрузилось, identity не потеряна
+
+Добавлен общий `scripts/check-os-lifecycle.py`; собственный bundle-runner использует последовательность:
+
+1. `check-firmware.py` с version/fingerprint из проверенной metadata сборки — **до** изменения userdata.
+2. Lifecycle: guard local serial + Cuttlefish + явный флаг разрешения; Enforcing/core services; корректный kernel boot UUID; случайный marker в /data/local/tmp; sync и reboot; ожидание **нового UUID ядра**, увеличения boot_count и sys.boot_completed=1; проверка marker/fingerprint continuity/служб/SELinux, удаление marker.
+3. **Повторный** `check-firmware.py` с прежними независимыми expected значениями. Например, другой HOME после reboot или пропавший ro.doxaiz.version дают отказ — тест не выполняет set-home-activity, install или setprop, чтобы его скрыть.
+4. Внешний EXIT trap сохраняет диагностику и останавливает Cuttlefish, в том числе при отказе lifecycle/after-gates.
+
+Общее ожидание повторной загрузки ограничено monotonic deadline: каждый probe получает только оставшееся время. Отсутствующий/неизменившийся UUID не заменяется одним boot_count. Hardware property — лишь guard от случайного выбора аппарата, не доверенная идентификация. Перед выполнением lifecycle на своём образе уже должны пройти независимые firmware gates.
+
+Reference wrapper теперь вызывает тот же общий код и пишет явный `NOT DoxaizOS`. Старые успешные reference runs проверяли прежнюю реализацию; они **не являются доказательством** нового UUID-гейта. Stock negative own-bundle control по-прежнему обязан остановиться на первом version gate, до reboot-сценария своей ОС.
+
+Дополнительные /proc/meminfo, /proc/swaps, PSI, ZRAM mm_stat/algorithm/disksize сохраняются до/после как сырые файлы. Отсутствующие интерфейсы записываются `unavailable`, не подменяются нулями или «бюджет выполнен». Это не бенчмарк, не подтверждение активной настройки ZRAM и не гарантия 2-ГБ Redmi.
+
+Локальная проверка: 19 unittest methods PASS с вложенными сценариями. В новом lifecycle suite 18 cases: успешный/восстановившийся транспорт, не та VM/незавершённая загрузка, плохой UUID, отказ reboot, неизменный UUID/счётчик, недогрузка, потеря marker, смена fingerprint, Permissive/потеря службы после reboot, отсутствующая необязательная диагностика, cleanup failure, adb timeout/missing, частичный write failure. Отдельно проверены consent/serial/existing-report guards. В own-runner 10 mocked cases, включая HOME/version regression после reboot и запуск cleanup при неудачной перезагрузке. Всё это **проверка логики**, не настоящий Android boot.
+
+Публикация/внешняя проверка новой версии пока не подтверждена: первый `git push` после локального commit a199602 завершился `gnutls_handshake() failed`, `gh api rate_limit` — EOF. Это транспортные ошибки, не установленная ошибка аутентификации; новые ключи/пароли не запрашивались. Нельзя утверждать, что новый workflow уже запущен или прошёл. Изменения сохранены в рабочей ветке локально. Общая готовность DoxaizOS остаётся 25–30%.
