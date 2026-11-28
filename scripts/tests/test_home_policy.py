@@ -111,6 +111,10 @@ printf fixture > "$root/overlay/vendor/doxaiz/apps/DoxaizLauncher/DoxaizLauncher
                 adb = bindir / 'adb'
                 adb.write_text('#!' + sys.executable + '\n' + ADB)
                 adb.chmod(0o755)
+                # No real 20-second writeback delay in synthetic orchestration.
+                sleep = bindir / 'sleep'
+                sleep.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$MOCK_STATE/sleeps"\n')
+                sleep.chmod(0o755)
                 env = dict(os.environ, PATH=str(bindir) + ':' + os.environ['PATH'],
                            GITHUB_ACTIONS='true', RUNNER_ENVIRONMENT='github-hosted',
                            ANDROID_SERIAL='127.0.0.1:6520', CASE=case, MOCK_STATE=str(root))
@@ -133,6 +137,9 @@ printf fixture > "$root/overlay/vendor/doxaiz/apps/DoxaizLauncher/DoxaizLauncher
                     recorded = [json.loads(line) for line in calls.read_text().splitlines()]
                     assignments = [c for c in recorded if c[:4] == ['shell', 'cmd', 'package', 'set-home-activity']]
                     self.assertEqual(len(assignments), 1 if case == 'lost_choice' else 2)
+                    self.assertEqual((root / 'sleeps').read_text().splitlines().count('20'),
+                                     1 if case == 'lost_choice' else 2)
+
                     self.assertTrue((report / 'doxaiz-choice-resolve-history.txt').exists())
                     if case == 'background_user':
                         self.assertIn('ResolverActivity', (report / 'doxaiz-choice-background-home.txt').read_text())

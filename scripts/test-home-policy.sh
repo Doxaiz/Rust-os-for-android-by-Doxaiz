@@ -166,6 +166,13 @@ adb_cmd shell cmd package set-home-activity --user "$user_id" com.doxaiz.launche
 # HOME again. Keep observations before/after foregrounding to diagnose races.
 verify_choice_after_reboot() {
     local phase="$1" expected="$2" observed choice_deadline
+    # PMS schedules preferred-activity restrictions writes with a 10 s delay
+    # (lineage-24.0). Test SETTLED persistence, not immediate power-loss safety.
+    # sync alone cannot flush a write still queued in system_server memory.
+    adb_cmd shell dumpsys package preferred > "$report/$phase-before-settle-preferred.txt"
+    sleep 20
+    adb_cmd shell dumpsys package preferred > "$report/$phase-after-settle-preferred.txt"
+    adb_cmd shell sync
     reboot_guest
     adb_cmd shell test ! -e /system/etc/preferred-apps/doxaiz-home.xml
     resolve_home > "$report/$phase-background-home.txt"
@@ -192,7 +199,7 @@ adb_cmd shell cmd package set-home-activity --user "$user_id" "$stock_home" > "$
 [ "$(resolve_home)" = "$stock_home" ]
 verify_choice_after_reboot stock-choice "$stock_home"
 [ "$(adb_cmd shell getenforce | tr -d '\r\n')" = Enforcing ]
-printf '%s\n' 'PASS NEGATIVE CONTROL: XML alone leaves a chooser; AFTER XML REMOVAL explicit choices of Doxaiz and stock HOME each survive reboot.' \
+printf '%s\n' 'PASS NEGATIVE CONTROL: XML alone leaves a chooser; AFTER XML REMOVAL AND 20s SETTLE explicit choices of Doxaiz and stock HOME each survive reboot.' \
     'NOT a DoxaizOS image build/boot. Overlayfs+system APK injection was used for this integration experiment.' \
     > "$report/result.txt"
 cat "$report/result.txt"
