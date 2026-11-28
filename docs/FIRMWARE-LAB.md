@@ -101,3 +101,9 @@ python3 scripts/check-firmware.py \
 8. AOSP atest — https://source.android.com/docs/core/tests/development/atest
 
 Это исследование доступных вариантов, не подтверждение наличия у нас доступа к чужому серверу, аккаунту, бесплатной квоте или права создавать платные ресурсы.
+
+## Подтверждённый отрицательный контроль
+
+[Push CI run 46146279694](https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/runs/46146279694), commit `82b7170`, успешно завершён. В настоящем Android Emulator check-firmware.py отказал штатному AOSP по отсутствию ожидаемой версии DoxaizOS; smoke дополнительно проверил точную причину отказа. 13 offline-сценариев проверяют остальные gates. **Положительного запуска собственного образа в этом run нет.**
+
+Проверить список уже подключённых self-hosted runners через текущую GitHub-интеграцию не удалось: API вернул `Resource not accessible by integration` (403). Это ограничение прав, а не доказательство отсутствия runners. Новые ресурсы не регистрировались и не оплачивались.
