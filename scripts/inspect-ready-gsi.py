@@ -45,9 +45,13 @@ def parse_listing(data):
     """Parse debugfs ls -p output, never use image names as commands/paths."""
     entries = []
     for line in data.decode('utf-8', errors='strict').splitlines():
+        if not line.strip():
+            continue
         parts = line.split('/')
         if len(parts) < 7 or parts[0] or not parts[1].isdigit():
-            raise ValueError('unrecognized debugfs listing format')
+            raise ValueError('unrecognized debugfs listing format: ' + repr(line[:120]))
+        if int(parts[1]) == 0:  # unused ext directory record
+            continue
         mode = int(parts[2], 8)
         name = parts[5]
         if name in ('.', '..'):
@@ -163,6 +167,9 @@ def inspect(image, expected, output, maximum=8 * 1024**3):
                 else:
                     result['inventory_by_path'][path] = {'status': 'unavailable'}
 
+            for required_path in ('/system/app', '/system/priv-app'):
+                if result['inventory_by_path'][required_path]['status'] != 'listed':
+                    raise ValueError('required module inventory incomplete: ' + required_path)
             if not any(result['properties_by_path'].values()):
                 raise ValueError('no recognized system properties; inspection incomplete')
             result['passed'] = True

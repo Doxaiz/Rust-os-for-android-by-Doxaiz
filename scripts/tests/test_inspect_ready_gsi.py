@@ -29,7 +29,7 @@ class InspectGSITests(unittest.TestCase):
 
     def test_listing_parsing_and_guards(self):
         data = b'/2/040755/0/0/.//\n/3/040755/0/0/..//\n/42/040755/0/0/Settings//\n/43/100644/0/0/example.rc/123/\n'
-        entries = module.parse_listing(data)
+        entries = module.parse_listing(b'\n' + data + b'\n/0/000000/0/0//0/\n')
         self.assertEqual([e['name'] for e in entries], ['Settings', 'example.rc'])
         self.assertEqual(entries[0]['kind'], 'directory')
         self.assertEqual(entries[1]['kind'], 'file')
@@ -54,7 +54,7 @@ class InspectGSITests(unittest.TestCase):
                     if case == 'debugfs_timeout': raise subprocess.TimeoutExpired('debugfs', 25)
                     if 'build.prop' in command and case != 'missing_props':
                         return b'ro.build.version.sdk=34\nro.build.version.security_patch=2026-11-01\n', ''
-                    if command == 'ls -p /system/app':
+                    if command in ('ls -p /system/app', 'ls -p /system/priv-app'):
                         return b'/42/040755/0/0/Settings//\n', ''
                     return b'', 'unavailable'
                 with patch.object(module, 'read_debugfs', side_effect=reader) as debugfs:
@@ -81,6 +81,7 @@ class InspectGSITests(unittest.TestCase):
             tree = root / 'tree'
             (tree / 'system/bin').mkdir(parents=True)
             (tree / 'system/app/FixtureApp').mkdir(parents=True)
+            (tree / 'system/priv-app').mkdir()
             (tree / 'system/build.prop').write_text('ro.build.version.sdk=34\nro.build.version.security_patch=2026-11-01\n')
             elf = bytearray(20)
             elf[:6] = b'\x7fELF\x01\x01'
