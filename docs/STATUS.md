@@ -16,6 +16,8 @@ Rust hardening preparation: run 46171662508 SUCCESS — release-инструме
 
 Попытка Rust image edit 46173065193 **отказала до записи**: у prebuilt ext4 shared_blocks. Изменённый образ не создан; guard не обходился. [Причина и следующий безопасный этап](READY-BASE-SECURITY.md).
 
+Read-only unshare feasibility: run 46178504921 записал диагностику успешно, но e2fsck dry-run exit 4 — не удалось выделить блоки для полного unshare. SHA исходника неизменен; normalized/modified image не создан. [Точные наблюдения](READY-BASE-SECURITY.md), не путать SUCCESS workflow со снятием blocker.
+
 ## Три уровня готовности
 
 | Уровень | Состояние | Пояснение |

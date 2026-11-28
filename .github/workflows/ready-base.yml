@@ -98,7 +98,7 @@ jobs:
           for name in ('result.txt', 'e2fsck.stdout.txt', 'e2fsck.stderr.txt'):
               text = (root / name).read_text(errors='replace')
               if len(text.encode()) > 6000:
-                  text = text[:3000] + '\nTRUNCATED: full diagnostic in artifact\n' + text[-1000:]
+                  text = text[:3000] + '\nTRUNCATED: larger bounded excerpt in artifact; original middle discarded\n' + text[-1000:]
               print('::notice title=Read-only unshare ' + name + '::' + text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
           PY
       - name: Publish bounded audit facts (including on failure)
