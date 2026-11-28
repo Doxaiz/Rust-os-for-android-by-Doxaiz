@@ -163,9 +163,65 @@ pub fn experiment(input: &Path, output: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Read-only unshare allocation simulation on the one reviewed raw image.
+/// A completed diagnostic may report infeasible; it is NOT normalization.
+pub fn unshare_feasibility(input: &Path, output: &Path) -> Result<(), String> {
+    for path in input.ancestors().chain(output.parent().unwrap_or(Path::new(".")).ancestors()) {
+        if !path.as_os_str().is_empty() && fs::symlink_metadata(path).map_err(|e| e.to_string())?.file_type().is_symlink() {
+            return Err("symlink path refused".into());
+        }
+    }
+    if !fs::symlink_metadata(input).map_err(|e| e.to_string())?.is_file()
+        || fs::metadata(input).map_err(|e| e.to_string())?.len() != 1815896064 {
+        return Err("only reviewed regular raw image accepted".into());
+    }
+    if fs::symlink_metadata(output).is_ok() { return Err("new report directory required".into()); }
+    let name = input.to_str().ok_or("UTF-8 input path required")?;
+    if sha(name)? != INPUT_SHA { return Err("raw image SHA mismatch".into()); }
+    let mut source = File::open(input).map_err(|e| e.to_string())?;
+    if read_at(&mut source, 1080, 2)? != [0x53, 0xef] { return Err("ext4 required".into()); }
+    let flags = read_at(&mut source, 1124, 4)?;
+    let flags = u32::from_le_bytes(flags.try_into().map_err(|_| "invalid feature word")?);
+    if flags & 0x4000 == 0 { return Err("reviewed shared_blocks layout expected".into()); }
+    // -n opens the FS read-only and simulates allocation. No -y/-p, mount,
+    // resize, feature-bit override or image mutation is available in this mode.
+    let result = Command::new("timeout").args(probe_args(name))
+        .env("LC_ALL", "C").output().map_err(|e| e.to_string())?;
+    if result.stdout.len() > 1024 * 1024 || result.stderr.len() > 1024 * 1024 {
+        return Err("e2fsck diagnostic output too large".into());
+    }
+    if sha(name)? != INPUT_SHA { return Err("input changed during read-only diagnostic".into()); }
+    let code = result.status.code().ok_or("e2fsck terminated by signal")?;
+    if !matches!(code, 0 | 1 | 2 | 4) { return Err(format!("e2fsck diagnostic failed: exit {code}")); }
+    fs::create_dir(output).map_err(|e| e.to_string())?;
+    write_probe_file(&output.join("e2fsck.stdout.txt"), &result.stdout)?;
+    write_probe_file(&output.join("e2fsck.stderr.txt"), &result.stderr)?;
+    let conclusion = if code == 0 { "dry-run-exit-zero-not-actual-unshare" } else { "nonzero-inconclusive-or-infeasible-see-diagnostics" };
+    let report = format!("scope=read-only-unshare-feasibility\ninput_sha256={INPUT_SHA}\ninput_unchanged=true\ne2fsck_exit={code}\nassessment={conclusion}\nimage_modified=false\nnormalized_image_created=false\nboot_tested=false\nrelease_approved=false\n");
+    write_probe_file(&output.join("result.txt"), report.as_bytes())
+}
+
+fn probe_args(name: &str) -> [&str; 6] {
+    ["120s", "e2fsck", "-n", "-E", "unshare_blocks", name]
+}
+
+fn write_probe_file(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    let mut file = OpenOptions::new().create_new(true).write(true).open(path).map_err(|e| e.to_string())?;
+    file.write_all(bytes).map_err(|e| e.to_string())?;
+    file.sync_all().map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn feasibility_command_is_read_only_and_has_no_repair_flags() {
+        let args = probe_args("/owned/regular-file.img");
+        assert_eq!(args, ["120s", "e2fsck", "-n", "-E", "unshare_blocks", "/owned/regular-file.img"]);
+        assert!(!args.contains(&"-y"));
+        assert!(!args.contains(&"-p"));
+    }
+
     #[test]
     fn mapping_is_narrow_and_fail_closed() {
         let stat = "Inode: 42 Type: regular Mode: 0644 Flags: 0x80000\nSize: 123\nLinks: 1\nEXTENTS:\n(0):99\n";

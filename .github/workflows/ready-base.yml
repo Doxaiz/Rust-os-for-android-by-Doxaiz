@@ -81,7 +81,7 @@ jobs:
           (root / 'result.json').write_text(json.dumps(facts, indent=2) + '\n')
           print('::notice title=Rust remote patch prepared NOT applied::' + json.dumps(facts).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
           PY
-      - name: Experimental Rust edit of disposable image copy (NEVER flash or upload)
+      - name: Read-only Rust shared-block unshare feasibility (NO image modification)
         run: |
           command -v e2fsck
           python3 - <<'PY'
@@ -90,12 +90,16 @@ jobs:
               raise SystemExit('Not enough disk for two disposable raw images')
           PY
           gzip -dc reports/ready-base/candidate.img.gz > reports/ready-base/original.raw
-          cargo run --release --manifest-path core/Cargo.toml -p doxaiz-hardening --bin doxaiz-experiment-image -- \
-            --allow-unbooted-experiment reports/ready-base/original.raw reports/ready-base/image-experiment
+          cargo run --release --manifest-path core/Cargo.toml -p doxaiz-hardening --bin doxaiz-unshare-probe -- \
+            reports/ready-base/original.raw reports/ready-base/unshare-probe
           python3 - <<'PY'
           from pathlib import Path
-          text = Path('reports/ready-base/image-experiment/result.txt').read_text()
-          print('::notice title=UNBOOTED image experiment NOT release::' + text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
+          root = Path('reports/ready-base/unshare-probe')
+          for name in ('result.txt', 'e2fsck.stdout.txt', 'e2fsck.stderr.txt'):
+              text = (root / name).read_text(errors='replace')
+              if len(text.encode()) > 6000:
+                  text = text[:3000] + '\nTRUNCATED: full diagnostic in artifact\n' + text[-1000:]
+              print('::notice title=Read-only unshare ' + name + '::' + text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
           PY
       - name: Publish bounded audit facts (including on failure)
         if: always()
@@ -166,6 +170,7 @@ jobs:
             reports/ready-base/inspection/
             reports/ready-base/remote-patch/
             reports/ready-base/image-experiment/result.txt
+            reports/ready-base/unshare-probe/
           if-no-files-found: warn
           retention-days: 7
       - name: Delete candidate from disposable runner

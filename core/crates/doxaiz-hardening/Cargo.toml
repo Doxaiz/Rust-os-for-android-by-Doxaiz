@@ -13,4 +13,8 @@ path = "src/main.rs"
 name = "doxaiz-experiment-image"
 path = "src/image_main.rs"
 
+[[bin]]
+name = "doxaiz-unshare-probe"
+path = "src/unshare_main.rs"
+
 [dependencies]
