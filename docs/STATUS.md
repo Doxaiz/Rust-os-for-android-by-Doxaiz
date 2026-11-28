@@ -8,6 +8,8 @@
 
 [Состав готовой базы и минимальная адаптация](READY-BASE-ADAPTATION.md): реальный run 46166414296 SUCCESS, имена модулей app/priv-app и init entries извлечены без mount/boot. TrebuchetQuickStep/LineageSetupWizard отличаются от прежнего AOSP-эксперимента; ничего не удалено и ускорение не заявлено.
 
+**Security blocker готовой базы:** run 46169653206 извлёк remote-support конфигурации (TCP ADB + reverse SSH). Активность не проверена; неизменённый image не одобрен для финальной установки. [Наблюдения и условия допуска](READY-BASE-SECURITY.md). Это не доказательство заражения и не уже исправленный hardened image.
+
 ## Три уровня готовности
 
 | Уровень | Состояние | Пояснение |

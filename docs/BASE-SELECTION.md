@@ -140,3 +140,8 @@ Vanilla означает выбор сборки без включённого G
 ## Состав базы и минимальный план адаптации
 
 Готова [инвентаризация и политика минимальной адаптации](READY-BASE-ADAPTATION.md), основанная на реальном run 46166414296. В шести app-группах 106 directory entries без удвоения одинаковых alias-списков; это не число установленных APK или фоновых процессов. Launcher базы — TrebuchetQuickStep, setup — LineageSetupWizard: прежний AOSP Launcher3/Provision эксперимент нельзя переносить автоматически. Никакие пакеты не удалены; low-RAM/скорость остаются непроверенными. Машиночитаемое наблюдение: [inventory](evidence/ready-inventory-46166414296.json).
+
+
+## Важное решение после чтения security configs
+
+[Security audit реального образа](READY-BASE-SECURITY.md): run 46169653206 подтвердил remote-support rc/script, включающий TCP ADB и reverse SSH forwarding при предусмотренных условиях, плюс userdebug instrumentation. Активность в runtime не проверялась. **Конкретный неизменённый image не одобрен для финальной установки**; Vanilla/свежая строка patch не являются достаточным критерием. Сначала hardening/debug-defaults review и проверка производного образа, затем рекомендация. Ни удаление remote configs, ни новый hardened image ещё не выполнены.

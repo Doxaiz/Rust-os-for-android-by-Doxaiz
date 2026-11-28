@@ -1,0 +1,60 @@
+{
+  "scope": "read-only-configuration-not-runtime-audit",
+  "run_url": "https://github.com/Doxaiz/Rust-os-for-android-by-Doxaiz/actions/runs/46169653206",
+  "source_commit": "88328bc4f5db2f5fc2831099ddf90f1a72865c16",
+  "observed_compressed_sha256": "7000876dee2b0f6f0814431626c495b0f254b00456c88964dee2a68473b3b146",
+  "publisher_authenticated": false,
+  "boot_tested": false,
+  "device_compatible": null,
+  "configs": [
+    {
+      "path": "/system/etc/init/logcatd.rc",
+      "status": "read",
+      "bytes": 2488,
+      "sha256": "da2f4ec465d257c402eaee2e81291415dea4b53b8920fd7a68b4acebdac5964d",
+      "report_file": "system-etc-init-logcatd.rc.txt",
+      "runtime_activation": "unknown",
+      "text": "#\n# init scriptures for logcatd persistent logging.\n#\n# Make sure any property changes are only performed with /data mounted, after\n# post-fs-data state because otherwise behavior is undefined. The exceptions\n# are device adjustments for logcatd service properties (persist.* overrides\n# notwithstanding) for logd.logpersistd.size logd.logpersistd.rotate_kbytes and\n# logd.logpersistd.buffer.\n\n# persist to non-persistent trampolines to permit device properties can be\n# overridden when /data mounts, or during runtime.\non property:persist.logd.logpersistd.count=*\n    # expect /init to report failure if property empty (default)\n    setprop persist.logd.logpersistd.size ${persist.logd.logpersistd.count}\n\non property:persist.logd.logpersistd.size=*\n    setprop logd.logpersistd.size ${persist.logd.logpersistd.size}\n\non property:persist.logd.logpersistd.rotate_kbytes=*\n    setprop logd.logpersistd.rotate_kbytes ${persist.logd.logpersistd.rotate_kbytes}\n\non property:persist.logd.logpersistd.buffer=*\n    setprop logd.logpersistd.buffer ${persist.logd.logpersistd.buffer}\n\non property:persist.logd.logpersistd=logcatd\n    setprop logd.logpersistd logcatd\n\n# enable, prep and start logcatd service\non load_persist_props_action\n    setprop logd.logpersistd.enable true\n\non property:logd.logpersistd.enable=true && property:logd.logpersistd=logcatd\n    # log group should be able to read persisted logs\n    mkdir /data/misc/logd 0750 logd log\n    start logcatd\n\n# stop logcatd service and clear data\non property:logd.logpersistd.enable=true && property:logd.logpersistd=clear\n    setprop persist.logd.logpersistd \"\"\n    stop logcatd\n    # logd for clear of only our files in /data/misc/logd\n    exec - logd log -- /system/bin/logcat -c -f /data/misc/logd/logcat -n ${logd.logpersistd.size:-256}\n    setprop logd.logpersistd \"\"\n\n# stop logcatd service\non property:logd.logpersistd=stop\n    setprop persist.logd.logpersistd \"\"\n    stop logcatd\n    setprop logd.logpersistd \"\"\n\non property:logd.logpersistd.enable=false\n    stop logcatd\n\n# logcatd service\nservice logcatd /system/bin/logcatd -L -b ${logd.logpersistd.buffer:-all} -v threadtime -v usec -v printable -D -f /data/misc/logd/logcat -r ${logd.logpersistd.rotate_kbytes:-2048} -n ${logd.logpersistd.size:-256} --id=${ro.build.id}\n    class late_start\n    disabled\n    # logd for write to /data/misc/logd, log group for read from log daemon\n    user logd\n    group log\n    task_profiles ServiceCapacityLow\n    oom_score_adjust -600\n"
+    },
+    {
+      "path": "/system/etc/init/atrace_userdebug.rc",
+      "status": "read",
+      "bytes": 1341,
+      "sha256": "0fcf7a0dfa93eafb2ad9cf277f5779d6261ff03a39271aa33e3b0f3de9b69c5d",
+      "report_file": "system-etc-init-atrace_userdebug.rc.txt",
+      "runtime_activation": "unknown",
+      "text": "## Permissions to allow additional system-wide tracing to the kernel trace buffer.\n## The default list of permissions is set in frameworks/native/cmds/atrace/atrace.rc\n\n# Grant unix world read/write permissions to enable kernel tracepoints.\n# Access control to these files is now entirely in selinux policy.\n\non post-fs\n    # On userdebug allow to enable any event via the generic\n    # set_event interface:\n    # echo sched/foo > set_event == echo 1 > events/sched/foo/enable.\n    chmod 0666 /sys/kernel/tracing/set_event\n    chmod 0666 /sys/kernel/debug/tracing/set_event\n\n    chmod 0666 /sys/kernel/tracing/events/workqueue/enable\n    chmod 0666 /sys/kernel/debug/tracing/events/workqueue/enable\n    chmod 0666 /sys/kernel/tracing/events/regulator/enable\n    chmod 0666 /sys/kernel/debug/tracing/events/regulator/enable\n    chmod 0666 /sys/kernel/tracing/events/filemap/enable\n    chmod 0666 /sys/kernel/debug/tracing/events/filemap/enable\n\n    # Allow traced_probes to use the raw_syscall filters to trace only a subset\n    # of syscalls.\n    chmod 0666 /sys/kernel/tracing/events/raw_syscalls/sys_enter/filter\n    chmod 0666 /sys/kernel/debug/tracing/events/raw_syscalls/sys_enter/filter\n    chmod 0666 /sys/kernel/tracing/events/raw_syscalls/sys_exit/filter\n    chmod 0666 /sys/kernel/debug/tracing/events/raw_syscalls/sys_exit/filter\n"
+    },
+    {
+      "path": "/system/etc/prop.default",
+      "status": "unavailable"
+    },
+    {
+      "path": "/system/etc/init/init-debug.rc",
+      "status": "read",
+      "bytes": 659,
+      "sha256": "765aa7ca0a86d80cf16b04c6e9daa6fae0a8f8abd6da23075c95db702046bf74",
+      "report_file": "system-etc-init-init-debug.rc.txt",
+      "runtime_activation": "unknown",
+      "text": "on property:persist.mmc.max_read_speed=*\n    write /sys/block/mmcblk0/max_read_speed ${persist.mmc.max_read_speed}\n\non property:persist.mmc.max_write_speed=*\n    write /sys/block/mmcblk0/max_write_speed ${persist.mmc.max_write_speed}\n\non property:persist.mmc.cache_size=*\n    write /sys/block/mmcblk0/cache_size ${persist.mmc.cache_size}\n\non early-init && property:ro.product.debugfs_restrictions.enabled=true\n    mount debugfs debugfs /sys/kernel/debug\n    chmod 0755 /sys/kernel/debug\n\non property:sys.boot_completed=1 && property:ro.product.debugfs_restrictions.enabled=true && \\\n   property:persist.dbg.keep_debugfs_mounted=\"\"\n   umount /sys/kernel/debug\n"
+    },
+    {
+      "path": "/system/bin/phh-remotectl.sh",
+      "status": "read",
+      "bytes": 187,
+      "sha256": "f3f2b9ffb5efb3fc499430f6755fd3bcd19be5db9d26a2634b9b15496dbe47c6",
+      "report_file": "system-bin-phh-remotectl.sh.txt",
+      "runtime_activation": "unknown",
+      "text": "#!/system/bin/sh\n\nwhile true;do\n    #FIXME: Don't ignore server pubkey\n    dbclient -N -p 2222 -y -R $((20000 + (RANDOM % 40000) )):localhost:5555 android-remote.phh.me\n    sleep 10\ndone\n"
+    },
+    {
+      "path": "/system/etc/init/phh-remotectl.rc",
+      "status": "read",
+      "bytes": 321,
+      "sha256": "73b284ca417a64dc48dc48f150940e88beb3fa534b26a418131b10fc92dad03a",
+      "report_file": "system-etc-init-phh-remotectl.rc.txt",
+      "runtime_activation": "unknown",
+      "text": "on property:persist.sys.phh.remote=true\n    setprop persist.adb.tcp.port 5555\n    restart adbd\n    start phh-remotectl\n\non property:persist.sys.phh.remote=false\n    setprop persist.adb.tcp.port 0\n    restart adbd\n    stop phh-remotectl\n\n\nservice phh-remotectl /system/bin/phh-remotectl.sh\n   seclabel u:r:phhsu_daemon:s0\n"
+    }
+  ]
+}
